@@ -38,8 +38,9 @@ pub struct SparseType {
 //     }
 // }
 
-pub struct SparseMatrix{
+pub struct SparseMatrix<T>{
     mat: *mut GrB_Matrix,
+    phantom: PhantomData<*const T>
 }
 
 // pub trait HasSparseType {
@@ -53,8 +54,8 @@ pub struct SparseMatrix{
 // }
 
 
-impl SparseMatrix {
-    pub fn new(size: (u64, u64)) -> SparseMatrix{
+impl<T> SparseMatrix<T> {
+    pub fn new(size: (u64, u64)) -> SparseMatrix<T>{
 
         let _ = GRB; // make sure lib is init ?
         let mut A = MaybeUninit::<GrB_Matrix>::uninit();
@@ -65,11 +66,11 @@ impl SparseMatrix {
         };
 
         let mat = A.as_mut_ptr();
-        SparseMatrix{ mat: mat}
+        SparseMatrix{ mat: mat, phantom: PhantomData, }
     }
 }
 
-impl Drop for SparseMatrix {
+impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
         println!("BEFORE MATRIX FREE");
         unsafe { GrB_Matrix_free(self.mat);}
@@ -84,6 +85,6 @@ mod tests {
 
     #[test]
     fn create_bool_sparse_matrix() {
-        SparseMatrix::new((5, 5));
+        SparseMatrix::<bool>::new((5, 5));
     }
 }
