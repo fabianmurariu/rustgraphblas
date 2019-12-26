@@ -27,36 +27,14 @@ pub struct SparseType {
     tpe: *mut GrB_Type,
 }
 
-// impl SparseType {
-//     fn boolean() -> SparseType {
-
-//         let _ = GRB;
-//         let mut T = MaybeUninit::<GrB_Type>::new(GrB_BOOL);
-//         let tpe = T.as_mut_ptr();
-//         SparseType{tpe: tpe}
-
-//     }
-// }
-
-pub struct SparseMatrix<'a, T: 'a>{
+pub struct SparseMatrix<T>{
     mat: *mut GrB_Matrix,
-    // _marker: PhantomData<&'a T> // FIXME: this sould work with a PhantomData but it doesn't
-    _marker: Option<&'a T>
+    _marker: PhantomData<*const T>
 }
 
-// pub trait HasSparseType {
-//     fn sparseType() -> SparseType;
-// }
 
-// impl HasSparseType for bool {
-//     fn sparseType() -> SparseType {
-//         SparseType{ tpe: GrB_BOOL }
-//     }
-// }
-
-
-impl<'a, T> SparseMatrix<'a, T> {
-    pub fn new(size: (u64, u64), m:Option<&'a T>) -> SparseMatrix<'a, T>{
+impl<T> SparseMatrix<T> {
+    pub fn new(size: (u64, u64)) -> SparseMatrix<T>{
 
         let _ = *GRB; // make sure lib is init ?
         let mut A = MaybeUninit::<GrB_Matrix>::uninit();
@@ -67,8 +45,7 @@ impl<'a, T> SparseMatrix<'a, T> {
         };
 
         let mat = A.as_mut_ptr();
-        // println!("MAT {:p}", mat);
-        SparseMatrix{ mat: mat, _marker: m , }
+        SparseMatrix{ mat: mat, _marker: PhantomData , }
     }
 
     pub fn rows(&mut self) -> u64 {
@@ -81,23 +58,19 @@ impl<'a, T> SparseMatrix<'a, T> {
     }
 }
 
-impl<'a, T> Drop for SparseMatrix<'a, T> {
+impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
-        // println!("BEFORE MATRIX FREE {:p}", self.mat);
         unsafe { GrB_Matrix_free(self.mat);}
-        println!("AFTER MATRIX FREE");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem::{self, MaybeUninit};
 
     #[test]
     fn create_bool_sparse_matrix() {
-        let mut m = SparseMatrix::<bool>::new((5, 5), None);
+        let mut m = SparseMatrix::<bool>::new((5, 5));
         assert!(m.rows() == 5);
-        println!("DONE NOW COLLECT")
     }
 }
