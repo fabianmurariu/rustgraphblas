@@ -27,13 +27,24 @@ pub struct SparseType {
     tpe: *mut GrB_Type,
 }
 
+pub trait TypeEncoder {
+    fn blas_type() -> SparseType;
+}
+
+impl TypeEncoder for bool {
+    fn blas_type() -> SparseType {
+        let tpe = unsafe {&mut GrB_BOOL as *mut GrB_Type} ;
+        SparseType{tpe: tpe}
+    }
+}
+
 pub struct SparseMatrix<T>{
     mat: *mut GrB_Matrix,
     _marker: PhantomData<*const T>
 }
 
 
-impl<T> SparseMatrix<T> {
+impl<T:TypeEncoder> SparseMatrix<T> {
     pub fn new(size: (u64, u64)) -> SparseMatrix<T>{
 
         let _ = *GRB; // make sure lib is init ?
@@ -41,7 +52,7 @@ impl<T> SparseMatrix<T> {
 
         let (rows, cols) = size;
         unsafe {
-            GrB_Matrix_new(A.as_mut_ptr() , GrB_BOOL, rows, cols);
+            GrB_Matrix_new(A.as_mut_ptr() , *T::blas_type().tpe, rows, cols);
         };
 
         let mat = A.as_mut_ptr();
