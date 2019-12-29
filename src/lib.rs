@@ -56,7 +56,6 @@ impl<T:TypeEncoder> SparseMatrix<T> {
                 },
                 err => panic!("Failed to init matrix ")
             }
-            // GxB_Matrix_Option_set(A.assume_init(), GxB_Option_Field_GxB_FORMAT, GxB_Format_Value_GxB_BY_COL );
         }
 
     }
@@ -71,27 +70,13 @@ impl<T:TypeEncoder> SparseMatrix<T> {
     }
 
 
-    //FIXME this only does bool and it will blow up otherwise
-    pub fn insert(&mut self, row:u64, col:u64, val: bool) {
-        unsafe {
-            match GrB_Matrix_setElement_BOOL(self.mat, val, row, col) {
-                0 => (),
-                err => panic!("Failed to insert element at {} {} {} {}", row, col, val, err)
-            }
-        }
-    }
+}
 
-    pub fn get(&mut self, i:u64, j: u64) -> Option<bool> {
-        let mut P = MaybeUninit::<bool>::uninit();
-        unsafe {
-            match GrB_Matrix_extractElement_BOOL(P.as_mut_ptr(), self.mat, i, j) {
-                0 => Some(P.assume_init()),
-                1 => None,
-                e => panic!("Unable to extract element at {} {} {}", i, j, e)
-            }
-        }
+pub trait MatrixLike {
+    type Item;
 
-    }
+    fn insert(&mut self, row:u64, col:u64, val: Self::Item);
+    fn get(&mut self, i:u64, j: u64) -> Option<Self::Item>;
 }
 
 impl<T> Drop for SparseMatrix<T> {
@@ -100,6 +85,9 @@ impl<T> Drop for SparseMatrix<T> {
         unsafe { GrB_Matrix_free(m_pointer);}
     }
 }
+
+make_matrix_like!(bool, GrB_Matrix_extractElement_BOOL, GrB_Matrix_setElement_BOOL);
+make_matrix_like!(i8, GrB_Matrix_extractElement_INT8, GrB_Matrix_setElement_INT8);
 
 #[cfg(test)]
 mod tests {
@@ -122,4 +110,34 @@ mod tests {
         assert!(m.get(2, 3) == Some(true));
         assert!(m.get(0, 3) == Some(true));
     }
+}
+
+#[macro_export]
+macro_rules! make_matrix_like {
+    ( $typ:ty, $get_elem_func:ident, $set_elem_func:ident ) => {
+        impl MatrixLike for SparseMatrix<$typ> {
+            type Item = $typ;
+
+            fn insert(&mut self, row:u64, col:u64, val: Self::Item) {
+                unsafe {
+                    match $set_elem_func(self.mat, val, row, col) {
+                        0 => (),
+                        e => panic!("Failed to set element at ({}, {})={} GrB_error: {}", row, col, val, e)
+                    }
+                }
+            }
+
+            fn get(&mut self, i:u64, j: u64) -> Option<Self::Item> {
+                let mut P = MaybeUninit::<$typ>::uninit();
+                unsafe {
+                    match $get_elem_func(P.as_mut_ptr(), self.mat, i, j) {
+                        0 => Some(P.assume_init()),
+                        1 => None,
+                        e => panic!("Failed to get element at ({}, {}) GrB_error: {}", i, j, e)
+                    }
+                }
+
+            }
+        }
+    };
 }
