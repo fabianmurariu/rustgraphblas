@@ -40,6 +40,56 @@ pub struct SparseVector<T> {
     _marker: PhantomData<*const T>,
 }
 
+pub struct BinaryOp<A, B, C> {
+    op: GrB_BinaryOp,
+    _a: PhantomData<*const A>,
+    _b: PhantomData<*const B>,
+    _c: PhantomData<*const C>,
+}
+
+pub struct SparseMonoid<T> {
+    m: GrB_Monoid,
+    _t: PhantomData<*const T>,
+}
+
+trait MonoidBuilder {
+    type Item;
+    fn new_monoid(
+        binOp: BinaryOp<Self::Item, Self::Item, Self::Item>,
+        default: Self::Item,
+    ) -> SparseMonoid<Self::Item>;
+}
+
+make_monoid_builder!(bool, GrB_Monoid_new_BOOL);
+
+#[macro_export]
+macro_rules! make_monoid_builder {
+    ( $typ:ty, $builder:ident ) => {
+        impl MonoidBuilder for SparseMonoid<$typ> {
+            type Item = $typ;
+
+            fn new_monoid(
+                binOp: BinaryOp<Self::Item, Self::Item, Self::Item>,
+                default: Self::Item,
+            ) -> SparseMonoid<$typ> {
+                let mut X = MaybeUninit::<GrB_Monoid>::uninit();
+                unsafe {
+                    match $builder(X.as_mut_ptr(), binOp.op, default) {
+                        0 => {
+                            let m = X.as_mut_ptr();
+                            SparseMonoid {
+                                m: *m,
+                                _t: PhantomData,
+                            }
+                        }
+                        e => panic!("Failed to create monoid default value GrB_error={}", e),
+                    }
+                }
+            }
+        }
+    };
+}
+
 impl<T: TypeEncoder> SparseMatrix<T> {
     pub fn empty(size: (u64, u64)) -> SparseMatrix<T> {
         let _ = *GRB;
@@ -80,17 +130,15 @@ impl<T: TypeEncoder> SparseVector<T> {
             match GrB_Vector_new(V.as_mut_ptr(), *T::blas_type().tpe, size) {
                 0 => {
                     let vec = V.as_mut_ptr();
-                    SparseVector{
+                    SparseVector {
                         vec: *vec,
                         _marker: PhantomData,
                     }
-                },
+                }
                 e => panic!("Failed to init vector GrB_error {}", e),
-
             }
         }
     }
-
 }
 
 pub trait MatrixLike {
@@ -120,7 +168,7 @@ impl<T> Drop for SparseVector<T> {
 
 pub trait VectorLike {
     type Item;
-    fn insert(&mut self, i:u64, val: Self::Item);
+    fn insert(&mut self, i: u64, val: Self::Item);
     fn get(&mut self, i: u64) -> Option<Self::Item>;
 }
 
@@ -299,11 +347,11 @@ macro_rules! make_vector_like {
         impl VectorLike for SparseVector<$typ> {
             type Item = $typ;
 
-            fn insert(&mut self, i:u64, val: Self::Item) {
+            fn insert(&mut self, i: u64, val: Self::Item) {
                 unsafe {
                     match $set_elem_func(self.vec, val, i) {
                         0 => (),
-                        e => panic!("Failed to set element at ({})={} GrB_error: {}",i, val, e),
+                        e => panic!("Failed to set element at ({})={} GrB_error: {}", i, val, e),
                     }
                 }
             }
