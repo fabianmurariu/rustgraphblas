@@ -1,7 +1,11 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+mod ops;
+pub use crate::ops::monoid::*;
+pub use crate::ops::ffi::*;
+pub use crate::ops::types::*;
 
 use enum_primitive::*;
 use std::marker::PhantomData;
@@ -22,14 +26,6 @@ pub enum GrBIndex {
 }
 }
 
-pub struct SparseType {
-    tpe: *mut GrB_Type,
-}
-
-pub trait TypeEncoder {
-    fn blas_type() -> SparseType;
-}
-
 pub struct SparseMatrix<T> {
     mat: GrB_Matrix,
     _marker: PhantomData<*const T>,
@@ -38,56 +34,6 @@ pub struct SparseMatrix<T> {
 pub struct SparseVector<T> {
     vec: GrB_Vector,
     _marker: PhantomData<*const T>,
-}
-
-pub struct BinaryOp<A, B, C> {
-    op: GrB_BinaryOp,
-    _a: PhantomData<*const A>,
-    _b: PhantomData<*const B>,
-    _c: PhantomData<*const C>,
-}
-
-pub struct SparseMonoid<T> {
-    m: GrB_Monoid,
-    _t: PhantomData<*const T>,
-}
-
-trait MonoidBuilder {
-    type Item;
-    fn new_monoid(
-        binOp: BinaryOp<Self::Item, Self::Item, Self::Item>,
-        default: Self::Item,
-    ) -> SparseMonoid<Self::Item>;
-}
-
-make_monoid_builder!(bool, GrB_Monoid_new_BOOL);
-
-#[macro_export]
-macro_rules! make_monoid_builder {
-    ( $typ:ty, $builder:ident ) => {
-        impl MonoidBuilder for SparseMonoid<$typ> {
-            type Item = $typ;
-
-            fn new_monoid(
-                binOp: BinaryOp<Self::Item, Self::Item, Self::Item>,
-                default: Self::Item,
-            ) -> SparseMonoid<$typ> {
-                let mut X = MaybeUninit::<GrB_Monoid>::uninit();
-                unsafe {
-                    match $builder(X.as_mut_ptr(), binOp.op, default) {
-                        0 => {
-                            let m = X.as_mut_ptr();
-                            SparseMonoid {
-                                m: *m,
-                                _t: PhantomData,
-                            }
-                        }
-                        e => panic!("Failed to create monoid default value GrB_error={}", e),
-                    }
-                }
-            }
-        }
-    };
 }
 
 impl<T: TypeEncoder> SparseMatrix<T> {
@@ -172,107 +118,25 @@ pub trait VectorLike {
     fn get(&mut self, i: u64) -> Option<Self::Item>;
 }
 
-make_vector_like!(
-    bool,
-    GrB_Vector_extractElement_BOOL,
-    GrB_Vector_setElement_BOOL
-);
-make_vector_like!(
-    i8,
-    GrB_Vector_extractElement_INT8,
-    GrB_Vector_setElement_INT8
-);
-make_vector_like!(
-    u8,
-    GrB_Vector_extractElement_UINT8,
-    GrB_Vector_setElement_UINT8
-);
-make_vector_like!(
-    i16,
-    GrB_Vector_extractElement_INT16,
-    GrB_Vector_setElement_INT16
-);
-make_vector_like!(
-    u16,
-    GrB_Vector_extractElement_UINT16,
-    GrB_Vector_setElement_UINT16
-);
-make_vector_like!(
-    i32,
-    GrB_Vector_extractElement_INT32,
-    GrB_Vector_setElement_INT32
-);
-make_vector_like!(
-    u32,
-    GrB_Vector_extractElement_UINT32,
-    GrB_Vector_setElement_UINT32
-);
-make_vector_like!(
-    i64,
-    GrB_Vector_extractElement_INT64,
-    GrB_Vector_setElement_INT64
-);
-make_vector_like!(
-    u64,
-    GrB_Vector_extractElement_UINT64,
-    GrB_Vector_setElement_UINT64
-);
+make_vector_like!( bool, GrB_Vector_extractElement_BOOL, GrB_Vector_setElement_BOOL);
+make_vector_like!( i8, GrB_Vector_extractElement_INT8, GrB_Vector_setElement_INT8);
+make_vector_like!( u8, GrB_Vector_extractElement_UINT8, GrB_Vector_setElement_UINT8);
+make_vector_like!( i16, GrB_Vector_extractElement_INT16, GrB_Vector_setElement_INT16);
+make_vector_like!( u16, GrB_Vector_extractElement_UINT16, GrB_Vector_setElement_UINT16);
+make_vector_like!( i32, GrB_Vector_extractElement_INT32, GrB_Vector_setElement_INT32);
+make_vector_like!( u32, GrB_Vector_extractElement_UINT32, GrB_Vector_setElement_UINT32);
+make_vector_like!( i64, GrB_Vector_extractElement_INT64, GrB_Vector_setElement_INT64);
+make_vector_like!( u64, GrB_Vector_extractElement_UINT64, GrB_Vector_setElement_UINT64);
 
-make_matrix_like!(
-    bool,
-    GrB_Matrix_extractElement_BOOL,
-    GrB_Matrix_setElement_BOOL
-);
-make_matrix_like!(
-    i8,
-    GrB_Matrix_extractElement_INT8,
-    GrB_Matrix_setElement_INT8
-);
-make_matrix_like!(
-    u8,
-    GrB_Matrix_extractElement_UINT8,
-    GrB_Matrix_setElement_UINT8
-);
-make_matrix_like!(
-    i16,
-    GrB_Matrix_extractElement_INT16,
-    GrB_Matrix_setElement_INT16
-);
-make_matrix_like!(
-    u16,
-    GrB_Matrix_extractElement_UINT16,
-    GrB_Matrix_setElement_UINT16
-);
-make_matrix_like!(
-    i32,
-    GrB_Matrix_extractElement_INT32,
-    GrB_Matrix_setElement_INT32
-);
-make_matrix_like!(
-    u32,
-    GrB_Matrix_extractElement_UINT32,
-    GrB_Matrix_setElement_UINT32
-);
-make_matrix_like!(
-    i64,
-    GrB_Matrix_extractElement_INT64,
-    GrB_Matrix_setElement_INT64
-);
-make_matrix_like!(
-    u64,
-    GrB_Matrix_extractElement_UINT64,
-    GrB_Matrix_setElement_UINT64
-);
-
-make_base_sparse_type!(bool, GrB_BOOL);
-make_base_sparse_type!(i8, GrB_INT8);
-make_base_sparse_type!(u8, GrB_UINT8);
-make_base_sparse_type!(i16, GrB_INT16);
-make_base_sparse_type!(u16, GrB_UINT16);
-make_base_sparse_type!(i32, GrB_INT32);
-make_base_sparse_type!(u32, GrB_UINT32);
-make_base_sparse_type!(i64, GrB_INT64);
-make_base_sparse_type!(u64, GrB_UINT64);
+make_matrix_like!( bool, GrB_Matrix_extractElement_BOOL, GrB_Matrix_setElement_BOOL);
+make_matrix_like!( i8, GrB_Matrix_extractElement_INT8, GrB_Matrix_setElement_INT8);
+make_matrix_like!( u8, GrB_Matrix_extractElement_UINT8, GrB_Matrix_setElement_UINT8);
+make_matrix_like!( i16, GrB_Matrix_extractElement_INT16, GrB_Matrix_setElement_INT16);
+make_matrix_like!( u16, GrB_Matrix_extractElement_UINT16, GrB_Matrix_setElement_UINT16);
+make_matrix_like!( i32, GrB_Matrix_extractElement_INT32, GrB_Matrix_setElement_INT32);
+make_matrix_like!( u32, GrB_Matrix_extractElement_UINT32, GrB_Matrix_setElement_UINT32);
+make_matrix_like!( i64, GrB_Matrix_extractElement_INT64, GrB_Matrix_setElement_INT64);
+make_matrix_like!( u64, GrB_Matrix_extractElement_UINT64, GrB_Matrix_setElement_UINT64);
 
 #[cfg(test)]
 mod tests {
@@ -370,14 +234,13 @@ macro_rules! make_vector_like {
     };
 }
 
-#[macro_export]
-macro_rules! make_base_sparse_type {
-    ( $typ:ty, $grb_typ:ident ) => {
-        impl TypeEncoder for $typ {
-            fn blas_type() -> SparseType {
-                let tpe = unsafe { &mut $grb_typ as *mut GrB_Type };
-                SparseType { tpe: tpe }
-            }
-        }
-    };
+// finally we get some stuff done
+trait VectorAlgebra<A> {
+    fn vxm<B, C>(&mut self, m:SparseMatrix<B>, s_ring:Semiring<A, B, C>) -> SparseVector<A>;
 }
+
+// impl <A> VectorAlgebra for SparseVector<A> {
+//     type Vtpe = A;
+
+//     fn vxm(&mut self, )
+// }
