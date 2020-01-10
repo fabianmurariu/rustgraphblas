@@ -2,6 +2,10 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+#[macro_use]
+extern crate enum_primitive_derive;
+extern crate num_traits;
+
 mod ops;
 pub use crate::ops::monoid::*;
 pub use crate::ops::ffi::*;
@@ -235,8 +239,8 @@ macro_rules! make_vector_like {
 }
 
 // finally we get some stuff done
-trait VectorAlgebra<A> {
-    fn vxm<B, C>(&mut self, m:SparseMatrix<B>, s_ring:Semiring<A, B, C>) -> SparseVector<A>;
+trait VectorAlgebra<Z> {
+    fn vxm<X, Y>(&mut self, m:SparseMatrix<Y>, first_input: Option<&mut SparseVector<X>>, s_ring:Semiring<X, Y, Z>) -> SparseVector<Z>;
 }
 
 // impl <A> VectorAlgebra for SparseVector<A> {
