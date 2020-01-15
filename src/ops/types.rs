@@ -56,7 +56,13 @@ extern crate num_traits;
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Primitive)]
     pub enum Value {
-        Default = GrB_Desc_Value_GxB_DEFAULT as isize
+        Default = GrB_Desc_Value_GxB_DEFAULT as isize,
+        Replace = GrB_Desc_Value_GrB_REPLACE as isize,
+        SCMP = GrB_Desc_Value_GrB_SCMP as isize,
+        Transpose = GrB_Desc_Value_GrB_TRAN as isize,
+        Gustavson = GrB_Desc_Value_GxB_AxB_GUSTAVSON as isize,
+        Heap = GrB_Desc_Value_GxB_AxB_HEAP as isize,
+        Dot = GrB_Desc_Value_GxB_AxB_DOT as isize,
     }
 
 
@@ -87,7 +93,7 @@ extern crate num_traits;
             unsafe {
                 match GrB_Descriptor_set(self.desc, key.to_u32().unwrap(), value.to_u32().unwrap()) {
                     0 => self,
-                    e => panic!("Unable to set {:?}={:?}", key, value)
+                    e => panic!("Unable to set {:?}={:?} GrB_error {}", key, value, e)
                 }
             }
         }
@@ -95,12 +101,10 @@ extern crate num_traits;
         pub fn get(&self, key:Field) -> Option<Value> {
             let mut X = MaybeUninit::<GrB_Desc_Value>::uninit();
             unsafe {
-                GxB_Descriptor_get(
-                    X.as_mut_ptr(),
-                    self.desc,
-                    key.to_u32().unwrap()
-                );
-                Value::from_u32(X.assume_init())
+                match GxB_Descriptor_get( X.as_mut_ptr(), self.desc, key.to_u32().unwrap()) {
+                    0 => Value::from_u32(X.assume_init()),
+                    e => panic!("Unable to GET descriptor for {:?} GrB_error {}", key, e)
+                }
             }
         }
 
