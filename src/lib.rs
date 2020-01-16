@@ -7,13 +7,17 @@ extern crate enum_primitive_derive;
 extern crate num_traits;
 
 mod ops;
-pub use crate::ops::monoid::*;
+pub use crate::ops::binops::*;
 pub use crate::ops::ffi::*;
+pub use crate::ops::monoid::*;
+pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
 
 use enum_primitive::*;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ptr;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -122,25 +126,97 @@ pub trait VectorLike {
     fn get(&mut self, i: u64) -> Option<Self::Item>;
 }
 
-make_vector_like!( bool, GrB_Vector_extractElement_BOOL, GrB_Vector_setElement_BOOL);
-make_vector_like!( i8, GrB_Vector_extractElement_INT8, GrB_Vector_setElement_INT8);
-make_vector_like!( u8, GrB_Vector_extractElement_UINT8, GrB_Vector_setElement_UINT8);
-make_vector_like!( i16, GrB_Vector_extractElement_INT16, GrB_Vector_setElement_INT16);
-make_vector_like!( u16, GrB_Vector_extractElement_UINT16, GrB_Vector_setElement_UINT16);
-make_vector_like!( i32, GrB_Vector_extractElement_INT32, GrB_Vector_setElement_INT32);
-make_vector_like!( u32, GrB_Vector_extractElement_UINT32, GrB_Vector_setElement_UINT32);
-make_vector_like!( i64, GrB_Vector_extractElement_INT64, GrB_Vector_setElement_INT64);
-make_vector_like!( u64, GrB_Vector_extractElement_UINT64, GrB_Vector_setElement_UINT64);
+make_vector_like!(
+    bool,
+    GrB_Vector_extractElement_BOOL,
+    GrB_Vector_setElement_BOOL
+);
+make_vector_like!(
+    i8,
+    GrB_Vector_extractElement_INT8,
+    GrB_Vector_setElement_INT8
+);
+make_vector_like!(
+    u8,
+    GrB_Vector_extractElement_UINT8,
+    GrB_Vector_setElement_UINT8
+);
+make_vector_like!(
+    i16,
+    GrB_Vector_extractElement_INT16,
+    GrB_Vector_setElement_INT16
+);
+make_vector_like!(
+    u16,
+    GrB_Vector_extractElement_UINT16,
+    GrB_Vector_setElement_UINT16
+);
+make_vector_like!(
+    i32,
+    GrB_Vector_extractElement_INT32,
+    GrB_Vector_setElement_INT32
+);
+make_vector_like!(
+    u32,
+    GrB_Vector_extractElement_UINT32,
+    GrB_Vector_setElement_UINT32
+);
+make_vector_like!(
+    i64,
+    GrB_Vector_extractElement_INT64,
+    GrB_Vector_setElement_INT64
+);
+make_vector_like!(
+    u64,
+    GrB_Vector_extractElement_UINT64,
+    GrB_Vector_setElement_UINT64
+);
 
-make_matrix_like!( bool, GrB_Matrix_extractElement_BOOL, GrB_Matrix_setElement_BOOL);
-make_matrix_like!( i8, GrB_Matrix_extractElement_INT8, GrB_Matrix_setElement_INT8);
-make_matrix_like!( u8, GrB_Matrix_extractElement_UINT8, GrB_Matrix_setElement_UINT8);
-make_matrix_like!( i16, GrB_Matrix_extractElement_INT16, GrB_Matrix_setElement_INT16);
-make_matrix_like!( u16, GrB_Matrix_extractElement_UINT16, GrB_Matrix_setElement_UINT16);
-make_matrix_like!( i32, GrB_Matrix_extractElement_INT32, GrB_Matrix_setElement_INT32);
-make_matrix_like!( u32, GrB_Matrix_extractElement_UINT32, GrB_Matrix_setElement_UINT32);
-make_matrix_like!( i64, GrB_Matrix_extractElement_INT64, GrB_Matrix_setElement_INT64);
-make_matrix_like!( u64, GrB_Matrix_extractElement_UINT64, GrB_Matrix_setElement_UINT64);
+make_matrix_like!(
+    bool,
+    GrB_Matrix_extractElement_BOOL,
+    GrB_Matrix_setElement_BOOL
+);
+make_matrix_like!(
+    i8,
+    GrB_Matrix_extractElement_INT8,
+    GrB_Matrix_setElement_INT8
+);
+make_matrix_like!(
+    u8,
+    GrB_Matrix_extractElement_UINT8,
+    GrB_Matrix_setElement_UINT8
+);
+make_matrix_like!(
+    i16,
+    GrB_Matrix_extractElement_INT16,
+    GrB_Matrix_setElement_INT16
+);
+make_matrix_like!(
+    u16,
+    GrB_Matrix_extractElement_UINT16,
+    GrB_Matrix_setElement_UINT16
+);
+make_matrix_like!(
+    i32,
+    GrB_Matrix_extractElement_INT32,
+    GrB_Matrix_setElement_INT32
+);
+make_matrix_like!(
+    u32,
+    GrB_Matrix_extractElement_UINT32,
+    GrB_Matrix_setElement_UINT32
+);
+make_matrix_like!(
+    i64,
+    GrB_Matrix_extractElement_INT64,
+    GrB_Matrix_setElement_INT64
+);
+make_matrix_like!(
+    u64,
+    GrB_Matrix_extractElement_UINT64,
+    GrB_Matrix_setElement_UINT64
+);
 
 #[cfg(test)]
 mod tests {
@@ -240,11 +316,109 @@ macro_rules! make_vector_like {
 
 // finally we get some stuff done
 trait VectorAlgebra<Z> {
-    fn vxm<X, Y>(&mut self, m:SparseMatrix<Y>, first_input: Option<&mut SparseVector<X>>, s_ring:Semiring<X, Y, Z>) -> SparseVector<Z>;
+    fn vxm<X, Y>(
+        &mut self,
+        m: &SparseMatrix<Y>,
+        s_ring: Semiring<X, Y, Z>,
+        desc: &Descriptor,
+    ) -> &SparseVector<Z>;
 }
 
-// impl <A> VectorAlgebra for SparseVector<A> {
-//     type Vtpe = A;
+trait Reduce<T> {
+    fn reduce<'m>(
+        &self,
+        init: &'m mut T,
+        acc: Option<BinaryOp<T, T, T>>,
+        monoid: SparseMonoid<T>,
+        desc: Descriptor,
+    ) -> &'m T;
+}
 
-//     fn vxm(&mut self, )
-// }
+impl Reduce<bool> for SparseVector<bool> {
+    fn reduce<'m>(
+        &self,
+        init: &'m mut bool,
+        acc: Option<BinaryOp<bool, bool, bool>>,
+        monoid: SparseMonoid<bool>,
+        desc: Descriptor,
+    ) -> &'m bool {
+        unsafe {
+            match acc {
+                Some(op) => {
+                    GrB_Vector_reduce_BOOL(init, op.op, monoid.m, self.vec, desc.desc);
+                },
+                None => {
+                    let m = ptr::null_mut::<GB_BinaryOp_opaque>();
+                    GrB_Vector_reduce_BOOL(init, m, monoid.m, self.vec, desc.desc);
+                }
+            }
+        }
+        init
+    }
+}
+
+impl <Z> VectorAlgebra<Z> for SparseVector<Z> {
+
+    fn vxm<X, Y>(
+        &mut self,
+        m: &SparseMatrix<Y>,
+        s_ring: Semiring<X, Y, Z>,
+        desc: &Descriptor
+    ) -> &SparseVector<Z> {
+        println!("VXM");
+
+        let mask = ptr::null_mut::<GB_Vector_opaque>();
+        let acc = ptr::null_mut::<GB_BinaryOp_opaque>();
+        unsafe {
+            match GrB_vxm(self.vec, mask, acc, s_ring.s, self.vec, m.mat, desc.desc){
+                0 => self,
+                err => panic!("VXM failed GrB_error {}", err)
+            }
+        }
+    }
+}
+
+#[test]
+fn vmx_bool() {
+    let mut v = SparseVector::<bool>::empty(10);
+    v.insert(0, true);
+    v.insert(2, true);
+    v.insert(4, true);
+
+    let mut A = SparseMatrix::<bool>::empty((10, 10));
+    A.insert(0, 0, true);
+    A.insert(1, 0, true);
+    A.insert(0, 1, true);
+
+    let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
+    let land = BinaryOp::<bool, bool, bool>::land();
+    let semi = Semiring::new(m, land);
+
+    v.vxm(&A, semi, &Descriptor::default());
+
+}
+
+#[test]
+fn reduce_vector_and_all_true() {
+    let mut v = SparseVector::<bool>::empty(2);
+    v.insert(0, true);
+    v.insert(1, true);
+
+    let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
+    let land = BinaryOp::<bool, bool, bool>::land();
+    let desc = Descriptor::default();
+
+    assert_eq!(*v.reduce(&mut true, None, m, desc), true);
+}
+
+#[test]
+fn reduce_vector_and_some_true() {
+    let mut v = SparseVector::<bool>::empty(2);
+    v.insert(0, true);
+
+    let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), false);
+    let land = BinaryOp::<bool, bool, bool>::land();
+    let desc = Descriptor::default();
+
+    assert_eq!(*v.reduce(&mut true, None, m, desc), false);
+}
