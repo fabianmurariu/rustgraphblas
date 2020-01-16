@@ -370,9 +370,11 @@ impl <Z> VectorAlgebra<Z> for SparseVector<Z> {
         let mask = ptr::null_mut::<GB_Vector_opaque>();
         let acc = ptr::null_mut::<GB_BinaryOp_opaque>();
         unsafe {
-            GrB_vxm(self.vec, mask, acc, s_ring.s, self.vec, m.mat, desc.desc);
+            match GrB_vxm(self.vec, mask, acc, s_ring.s, self.vec, m.mat, desc.desc){
+                0 => self,
+                err => panic!("VXM failed GrB_error {}", err)
+            }
         }
-        self
     }
 }
 

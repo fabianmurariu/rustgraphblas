@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-use tracing::{event, span, Level};
+// use tracing::{event, span, Level};
 use crate::ops::binops::*;
 use crate::ops::ffi::*;
 use std::marker::PhantomData;
@@ -25,10 +25,9 @@ pub trait MonoidBuilder<T> {
 impl<T> Drop for SparseMonoid<T> {
     fn drop(&mut self) {
         unsafe {
-            event!(Level::TRACE, "FREEING MONOID!");
-            GrB_wait();
+            // FIXME: do we need to call GRB_wait here?
             let m_pointer = &mut self.m as *mut GrB_Monoid;
-            // GrB_Monoid_free(m_pointer);
+            GrB_Monoid_free(m_pointer);
         }
     }
 }
@@ -69,6 +68,7 @@ make_monoid_builder!(f32, GrB_Monoid_new_FP32);
 make_monoid_builder!(f64, GrB_Monoid_new_FP64);
 
 pub struct Semiring<A, B, C> {
+    monoid: SparseMonoid<C>,
     pub(crate) s: GrB_Semiring,
     _a: PhantomData<*const A>,
     _b: PhantomData<*const B>,
@@ -83,6 +83,7 @@ impl<A, B, C> Semiring<A, B, C> {
                 0 => {
                     let s = S.as_mut_ptr();
                     Semiring {
+                        monoid: add,
                         s: *s,
                         _a: PhantomData,
                         _b: PhantomData,
@@ -98,7 +99,7 @@ impl<A, B, C> Semiring<A, B, C> {
 impl<A, B, C> Drop for Semiring<A, B, C> {
     fn drop(&mut self) {
         unsafe {
-            println!("FREEING SEMIRING!");
+            //FIXME: do we need to call GRB_wait here?
             let m_pointer = &mut self.s as *mut GrB_Semiring;
             GrB_Semiring_free(m_pointer);
         }
@@ -111,3 +112,4 @@ fn create_semiring_bool_i32() {
     let land = BinaryOp::<bool, bool, bool>::land();
     Semiring::new(m, land);
 }
+
