@@ -25,7 +25,7 @@ pub trait MonoidBuilder<T> {
 impl<T> Drop for SparseMonoid<T> {
     fn drop(&mut self) {
         unsafe {
-            // FIXME: do we need to call GRB_wait here?
+            // FIXME: do we need to call GRB_wait here
             let m_pointer = &mut self.m as *mut GrB_Monoid;
             GrB_Monoid_free(m_pointer);
         }

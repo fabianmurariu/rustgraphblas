@@ -1,6 +1,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+#![allow(improper_ctypes)]
 
 #[macro_use]
 extern crate enum_primitive_derive;

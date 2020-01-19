@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tracing = "0.1"
+paste = "0.1"
 lazy_static = "1.4.0"
 enum_primitive = "0.1.1"
 enum-primitive-derive = "^0.1"
