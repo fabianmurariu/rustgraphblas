@@ -99,7 +99,7 @@ impl<A, B, C> Semiring<A, B, C> {
 impl<A, B, C> Drop for Semiring<A, B, C> {
     fn drop(&mut self) {
         unsafe {
-            //FIXME: do we need to call GRB_wait here?
+            //FIXME: Do we need to call some sort of GrB_wait to let all the computations using this semiring to finish?
             let m_pointer = &mut self.s as *mut GrB_Semiring;
             GrB_Semiring_free(m_pointer);
         }

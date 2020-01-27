@@ -13,6 +13,10 @@ pub trait TypeEncoder {
     fn blas_type() -> SparseType;
 }
 
+// manually define what types can act as a boolean mask (basically all basic types)
+pub trait CanBool {}
+impl CanBool for bool {}
+
 #[macro_export]
 macro_rules! make_base_sparse_type {
     ( $typ:ty, $grb_typ:ident ) => {
