@@ -13,6 +13,7 @@ pub use crate::ops::ffi::*;
 pub use crate::ops::monoid::*;
 pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
+pub use crate::ops::vector_algebra::*;
 
 use enum_primitive::*;
 use std::marker::PhantomData;
@@ -45,25 +46,27 @@ pub struct SparseVector<T> {
     _marker: PhantomData<*const T>,
 }
 
+fn grb_call<F, T>(mut grb_fn: F) -> T
+where
+    F: FnMut(&mut MaybeUninit<T>) -> u32 ,
+{
+    let mut P = MaybeUninit::<T>::uninit();
+    grb_fn(&mut P);
+    unsafe {P.assume_init()}
+}
+
 impl<T: TypeEncoder> SparseMatrix<T> {
     pub fn empty(size: (u64, u64)) -> SparseMatrix<T> {
         let _ = *GRB;
 
-        let mut A = MaybeUninit::<GrB_Matrix>::uninit();
-
         let (rows, cols) = size;
-        unsafe {
-            match GrB_Matrix_new(A.as_mut_ptr(), *T::blas_type().tpe, rows, cols) {
-                0 => {
-                    let mat = A.as_mut_ptr();
-                    SparseMatrix {
-                        mat: *mat,
-                        _marker: PhantomData,
-                    }
-                }
-                e => panic!("Failed to init matrix GrB_error {}", e),
-            }
-        }
+
+        let mat = grb_call(|M:&mut MaybeUninit<GrB_Matrix>|{
+            unsafe {GrB_Matrix_new(M.as_mut_ptr(), *T::blas_type().tpe, rows, cols) }
+        });
+
+        SparseMatrix{mat, _marker: PhantomData}
+
     }
 
     pub fn rows(&mut self) -> u64 {
@@ -73,6 +76,12 @@ impl<T: TypeEncoder> SparseMatrix<T> {
             GrB_Matrix_nrows(P.as_mut_ptr(), self.mat);
         }
         unsafe { P.assume_init() }
+    }
+
+    pub fn nvals(&self) -> u64 {
+        grb_call(|G:&mut MaybeUninit<u64>| {
+            unsafe { GrB_Matrix_nvals(G.as_mut_ptr(), self.mat) }
+        })
     }
 }
 
@@ -115,6 +124,10 @@ impl<T> Drop for SparseMatrix<T> {
 impl<T> Drop for SparseVector<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.vec as *mut GrB_Vector;
+        //nval forces a local wait for all the pending computations on this vector
+        // FIXME: should we really call this here? when using arrays in tight loops we need to hold on to them
+        // and not trigger a wait
+        // self.nvals();
         unsafe {
             GrB_Vector_free(m_pointer);
         }
@@ -127,97 +140,23 @@ pub trait VectorLike {
     fn get(&mut self, i: u64) -> Option<Self::Item>;
 }
 
-make_vector_like!(
-    bool,
-    GrB_Vector_extractElement_BOOL,
-    GrB_Vector_setElement_BOOL
-);
-make_vector_like!(
-    i8,
-    GrB_Vector_extractElement_INT8,
-    GrB_Vector_setElement_INT8
-);
-make_vector_like!(
-    u8,
-    GrB_Vector_extractElement_UINT8,
-    GrB_Vector_setElement_UINT8
-);
-make_vector_like!(
-    i16,
-    GrB_Vector_extractElement_INT16,
-    GrB_Vector_setElement_INT16
-);
-make_vector_like!(
-    u16,
-    GrB_Vector_extractElement_UINT16,
-    GrB_Vector_setElement_UINT16
-);
-make_vector_like!(
-    i32,
-    GrB_Vector_extractElement_INT32,
-    GrB_Vector_setElement_INT32
-);
-make_vector_like!(
-    u32,
-    GrB_Vector_extractElement_UINT32,
-    GrB_Vector_setElement_UINT32
-);
-make_vector_like!(
-    i64,
-    GrB_Vector_extractElement_INT64,
-    GrB_Vector_setElement_INT64
-);
-make_vector_like!(
-    u64,
-    GrB_Vector_extractElement_UINT64,
-    GrB_Vector_setElement_UINT64
-);
+macro_rules! sparse_vector_tpe_gen{
+    ( $grb_sparse_tpe:ident; $rust_maker:ident; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                $rust_maker!(
+                    $rust_tpe,
+                    [<$grb_sparse_tpe _extractElement_ $grb_tpe>],
+                    [<$grb_sparse_tpe _setElement_ $grb_tpe>]
+                );
+                )*
+        }
+    }
+}
 
-make_matrix_like!(
-    bool,
-    GrB_Matrix_extractElement_BOOL,
-    GrB_Matrix_setElement_BOOL
-);
-make_matrix_like!(
-    i8,
-    GrB_Matrix_extractElement_INT8,
-    GrB_Matrix_setElement_INT8
-);
-make_matrix_like!(
-    u8,
-    GrB_Matrix_extractElement_UINT8,
-    GrB_Matrix_setElement_UINT8
-);
-make_matrix_like!(
-    i16,
-    GrB_Matrix_extractElement_INT16,
-    GrB_Matrix_setElement_INT16
-);
-make_matrix_like!(
-    u16,
-    GrB_Matrix_extractElement_UINT16,
-    GrB_Matrix_setElement_UINT16
-);
-make_matrix_like!(
-    i32,
-    GrB_Matrix_extractElement_INT32,
-    GrB_Matrix_setElement_INT32
-);
-make_matrix_like!(
-    u32,
-    GrB_Matrix_extractElement_UINT32,
-    GrB_Matrix_setElement_UINT32
-);
-make_matrix_like!(
-    i64,
-    GrB_Matrix_extractElement_INT64,
-    GrB_Matrix_setElement_INT64
-);
-make_matrix_like!(
-    u64,
-    GrB_Matrix_extractElement_UINT64,
-    GrB_Matrix_setElement_UINT64
-);
+sparse_vector_tpe_gen!(GrB_Vector; make_vector_like; bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64; BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
+
+sparse_vector_tpe_gen!(GrB_Matrix; make_matrix_like; bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64; BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
 #[cfg(test)]
 mod tests {
@@ -226,12 +165,13 @@ mod tests {
     #[test]
     fn create_bool_sparse_matrix() {
         let mut m = SparseMatrix::<bool>::empty((5, 5));
-        // assert!(m.rows() == 5);
+        assert!(m.rows() == 5);
         assert!(m.insert(0, 3, true) == ());
         assert!(m.insert(1, 3, true) == ());
         assert!(m.insert(2, 3, true) == ());
         assert!(m.insert(3, 3, true) == ());
         assert!(m.insert(4, 3, true) == ());
+        assert!(m.nvals() == 5);
         assert!(m.get(1, 3) == Some(true));
         assert!(m.get(0, 0) == None);
         assert!(m.get(1, 3) == Some(true));
@@ -315,16 +255,6 @@ macro_rules! make_vector_like {
     };
 }
 
-// finally we get some stuff done
-trait VectorAlgebra<Z> {
-    fn vxm<X, Y>(
-        &mut self,
-        m: &SparseMatrix<Y>,
-        s_ring: Semiring<X, Y, Z>,
-        desc: &Descriptor,
-    ) -> &SparseVector<Z>;
-}
-
 trait Reduce<T> {
     fn reduce<'m>(
         &self,
@@ -344,38 +274,11 @@ impl Reduce<bool> for SparseVector<bool> {
         desc: Descriptor,
     ) -> &'m bool {
         unsafe {
-            match acc {
-                Some(op) => {
-                    GrB_Vector_reduce_BOOL(init, op.op, monoid.m, self.vec, desc.desc);
-                },
-                None => {
-                    let m = ptr::null_mut::<GB_BinaryOp_opaque>();
-                    GrB_Vector_reduce_BOOL(init, m, monoid.m, self.vec, desc.desc);
-                }
-            }
+            let m = ptr::null_mut::<GB_BinaryOp_opaque>();
+            let op_acc = acc.map(|x| x.op).unwrap_or(m);
+            GrB_Vector_reduce_BOOL(init, op_acc, monoid.m, self.vec, desc.desc);
         }
         init
-    }
-}
-
-impl <Z> VectorAlgebra<Z> for SparseVector<Z> {
-
-    fn vxm<X, Y>(
-        &mut self,
-        m: &SparseMatrix<Y>,
-        s_ring: Semiring<X, Y, Z>,
-        desc: &Descriptor
-    ) -> &SparseVector<Z> {
-        println!("VXM");
-
-        let mask = ptr::null_mut::<GB_Vector_opaque>();
-        let acc = ptr::null_mut::<GB_BinaryOp_opaque>();
-        unsafe {
-            match GrB_vxm(self.vec, mask, acc, s_ring.s, self.vec, m.mat, desc.desc){
-                0 => self,
-                err => panic!("VXM failed GrB_error {}", err)
-            }
-        }
     }
 }
 
@@ -395,8 +298,7 @@ fn vmx_bool() {
     let land = BinaryOp::<bool, bool, bool>::land();
     let semi = Semiring::new(m, land);
 
-    v.vxm(&A, semi, &Descriptor::default());
-
+    v.vxm(empty_mask::<bool>(), None, &A, semi, &Descriptor::default());
 }
 
 #[test]
@@ -406,7 +308,6 @@ fn reduce_vector_and_all_true() {
     v.insert(1, true);
 
     let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
-    let land = BinaryOp::<bool, bool, bool>::land();
     let desc = Descriptor::default();
 
     assert_eq!(*v.reduce(&mut true, None, m, desc), true);
@@ -418,7 +319,6 @@ fn reduce_vector_and_some_true() {
     v.insert(0, true);
 
     let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), false);
-    let land = BinaryOp::<bool, bool, bool>::land();
     let desc = Descriptor::default();
 
     assert_eq!(*v.reduce(&mut true, None, m, desc), false);

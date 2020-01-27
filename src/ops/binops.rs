@@ -30,7 +30,7 @@ macro_rules! make_binary_op {
     };
 }
 
-macro_rules! pairs{
+macro_rules! binary_ops_gen{
     ( $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
         paste::item! {
             $(
@@ -42,28 +42,6 @@ macro_rules! pairs{
     }
 }
 
-pairs!(bool, i8, u8, i16, u16; BOOL, INT8, UINT8, INT16, UINT16);
-
-make_binary_op!(i32, i32, GxB_LAND_INT32, land);
-make_binary_op!(i32, i32, GxB_LOR_INT32, lor);
-make_binary_op!(i32, i32, GxB_LXOR_INT32, lxor);
-
-make_binary_op!(u32, u32, GxB_LAND_UINT32, land);
-make_binary_op!(u32, u32, GxB_LOR_UINT32, lor);
-make_binary_op!(u32, u32, GxB_LXOR_UINT32, lxor);
-
-make_binary_op!(i64, i64, GxB_LAND_INT64, land);
-make_binary_op!(i64, i64, GxB_LOR_INT64, lor);
-make_binary_op!(i64, i64, GxB_LXOR_INT64, lxor);
-
-make_binary_op!(u64, u64, GxB_LAND_UINT64, land);
-make_binary_op!(u64, u64, GxB_LOR_UINT64, lor);
-make_binary_op!(u64, u64, GxB_LXOR_UINT64, lxor);
-
-make_binary_op!(f32, f32, GxB_LAND_FP32, land);
-make_binary_op!(f32, f32, GxB_LOR_FP32, lor);
-make_binary_op!(f32, f32, GxB_LXOR_FP32, lxor);
-
-make_binary_op!(f64, f64, GxB_LAND_FP64, land);
-make_binary_op!(f64, f64, GxB_LOR_FP64, lor);
-make_binary_op!(f64, f64, GxB_LXOR_FP64, lxor);
+binary_ops_gen!(
+    bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+    BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
