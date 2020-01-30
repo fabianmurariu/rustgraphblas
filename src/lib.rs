@@ -46,15 +46,6 @@ pub struct SparseVector<T> {
     _marker: PhantomData<*const T>,
 }
 
-fn grb_call<F, T>(mut grb_fn: F) -> T
-where
-    F: FnMut(&mut MaybeUninit<T>) -> u32 ,
-{
-    let mut P = MaybeUninit::<T>::uninit();
-    grb_fn(&mut P);
-    unsafe {P.assume_init()}
-}
-
 impl<T: TypeEncoder> SparseMatrix<T> {
     pub fn empty(size: (u64, u64)) -> SparseMatrix<T> {
         let _ = *GRB;
@@ -70,12 +61,9 @@ impl<T: TypeEncoder> SparseMatrix<T> {
     }
 
     pub fn rows(&mut self) -> u64 {
-        let mut P = MaybeUninit::<u64>::uninit();
-
-        unsafe {
-            GrB_Matrix_nrows(P.as_mut_ptr(), self.mat);
-        }
-        unsafe { P.assume_init() }
+        grb_call(|G:&mut MaybeUninit<u64>| {
+            unsafe { GrB_Matrix_nrows(G.as_mut_ptr(), self.mat) }
+        })
     }
 
     pub fn nvals(&self) -> u64 {
@@ -89,19 +77,24 @@ impl<T: TypeEncoder> SparseVector<T> {
     pub fn empty(size: u64) -> SparseVector<T> {
         let _ = *GRB;
 
-        let mut V = MaybeUninit::<GrB_Vector>::uninit();
-        unsafe {
-            match GrB_Vector_new(V.as_mut_ptr(), *T::blas_type().tpe, size) {
-                0 => {
-                    let vec = V.as_mut_ptr();
-                    SparseVector {
-                        vec: *vec,
-                        _marker: PhantomData,
-                    }
-                }
-                e => panic!("Failed to init vector GrB_error {}", e),
+        let vec = grb_call(|V:&mut MaybeUninit<GrB_Vector>|{
+            unsafe {
+                GrB_Vector_new(V.as_mut_ptr(), *T::blas_type().tpe, size)
             }
-        }
+        });
+        SparseVector{vec, _marker: PhantomData}
+    }
+
+    pub fn nvals(&self) -> u64 {
+        grb_call(|G:&mut MaybeUninit<u64>| {
+            unsafe { GrB_Vector_nvals(G.as_mut_ptr(), self.vec) }
+        })
+    }
+    
+    pub fn size(&self) -> u64 {
+        grb_call(|G:&mut MaybeUninit<u64>| {
+            unsafe { GrB_Vector_size(G.as_mut_ptr(), self.vec) }
+        })
     }
 }
 
@@ -115,9 +108,7 @@ pub trait MatrixLike {
 impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.mat as *mut GrB_Matrix;
-        unsafe {
-            GrB_Matrix_free(m_pointer);
-        }
+        grb_run( { || unsafe {GrB_Matrix_free(m_pointer)}});
     }
 }
 
@@ -128,9 +119,9 @@ impl<T> Drop for SparseVector<T> {
         // FIXME: should we really call this here? when using arrays in tight loops we need to hold on to them
         // and not trigger a wait
         // self.nvals();
-        unsafe {
-            GrB_Vector_free(m_pointer);
-        }
+        grb_run( || {unsafe {
+            GrB_Vector_free(m_pointer)
+        }});
     }
 }
 
@@ -154,9 +145,13 @@ macro_rules! sparse_vector_tpe_gen{
     }
 }
 
-sparse_vector_tpe_gen!(GrB_Vector; make_vector_like; bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64; BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
+sparse_vector_tpe_gen!(GrB_Vector; make_vector_like;
+    bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+    BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
-sparse_vector_tpe_gen!(GrB_Matrix; make_matrix_like; bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64; BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
+sparse_vector_tpe_gen!(GrB_Matrix; make_matrix_like;
+    bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+    BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
 #[cfg(test)]
 mod tests {
@@ -255,32 +250,6 @@ macro_rules! make_vector_like {
     };
 }
 
-trait Reduce<T> {
-    fn reduce<'m>(
-        &self,
-        init: &'m mut T,
-        acc: Option<BinaryOp<T, T, T>>,
-        monoid: SparseMonoid<T>,
-        desc: Descriptor,
-    ) -> &'m T;
-}
-
-impl Reduce<bool> for SparseVector<bool> {
-    fn reduce<'m>(
-        &self,
-        init: &'m mut bool,
-        acc: Option<BinaryOp<bool, bool, bool>>,
-        monoid: SparseMonoid<bool>,
-        desc: Descriptor,
-    ) -> &'m bool {
-        unsafe {
-            let m = ptr::null_mut::<GB_BinaryOp_opaque>();
-            let op_acc = acc.map(|x| x.op).unwrap_or(m);
-            GrB_Vector_reduce_BOOL(init, op_acc, monoid.m, self.vec, desc.desc);
-        }
-        init
-    }
-}
 
 #[test]
 fn vmx_bool() {
@@ -314,7 +283,7 @@ fn reduce_vector_and_all_true() {
 }
 
 #[test]
-fn reduce_vector_and_some_true() {
+fn reduce_vector_and_some_true_some_false() {
     let mut v = SparseVector::<bool>::empty(2);
     v.insert(0, true);
 
