@@ -62,20 +62,20 @@ macro_rules! make_vector_assign {
     };
 }
 
-macro_rules! make_vector_assign_all{
-    ( $rust_maker:ident; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+macro_rules! grb_trait_constructor{
+    ( $rust_maker:ident; $grb_partial_name:ident; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
         paste::item! {
             $(
                 $rust_maker!(
                     $rust_tpe,
-                    [<GrB_Vector_assign_ $grb_tpe>]
+                    [<$grb_partial_name $grb_tpe>]
                 );
                 )*
         }
     }
 }
 
-make_vector_assign_all!(make_vector_assign; bool, u64; BOOL, UINT64);
+grb_trait_constructor!(make_vector_assign; GrB_Vector_assign_; bool, u64; BOOL, UINT64);
 
 #[test]
 fn create_sparse_vector_assign_subvector(){
@@ -135,19 +135,27 @@ pub trait Reduce<T> {
     ) -> &'m T;
 }
 
-impl Reduce<bool> for SparseVector<bool> {
-    fn reduce<'m>(
-        &self,
-        init: &'m mut bool,
-        acc: Option<BinaryOp<bool, bool, bool>>,
-        monoid: SparseMonoid<bool>,
-        desc: Descriptor,
-    ) -> &'m bool {
-        unsafe {
-            let m = ptr::null_mut::<GB_BinaryOp_opaque>();
-            let op_acc = acc.map(|x| x.op).unwrap_or(m);
-            GrB_Vector_reduce_BOOL(init, op_acc, monoid.m, self.vec, desc.desc);
+macro_rules! make_vector_reduce {
+    ( $rust_typ:ty, $grb_reduce_fn:ident ) => {
+    impl Reduce<$rust_typ> for SparseVector<$rust_typ> {
+        fn reduce<'m>(
+            &self,
+            init: &'m mut $rust_typ,
+            acc: Option<BinaryOp<$rust_typ, $rust_typ, $rust_typ>>,
+            monoid: SparseMonoid<$rust_typ>,
+            desc: Descriptor,
+        ) -> &'m $rust_typ {
+            unsafe {
+                let m = ptr::null_mut::<GB_BinaryOp_opaque>();
+                let op_acc = acc.map(|x| x.op).unwrap_or(m);
+                $grb_reduce_fn(init, op_acc, monoid.m, self.vec, desc.desc);
+            }
+            init
         }
-        init
     }
+    };
 }
+
+grb_trait_constructor!(make_vector_reduce; GrB_Vector_reduce_;
+    bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+    BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
