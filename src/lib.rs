@@ -18,7 +18,6 @@ pub use crate::ops::vector_algebra::*;
 use enum_primitive::*;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ptr;
 
 #[macro_use]
 extern crate lazy_static;
@@ -34,6 +33,14 @@ pub enum GrBIndex {
     Success = GrB_Info_GrB_SUCCESS,
     NoValue = GrB_Info_GrB_NO_VALUE,
 }
+}
+
+pub trait VectorBuilder<Z> {
+    fn load(&mut self, n:u64, zs: &[Z], is:&[u64]) -> SparseVector<Z>;
+}
+
+pub trait MatrixBuilder<Z> {
+    fn load(&mut self, n:u64, zs: &[Z], is:&[u64], js:&[u64]) -> SparseMatrix<Z>;
 }
 
 pub struct SparseMatrix<T> {
@@ -119,9 +126,7 @@ impl<T> Drop for SparseVector<T> {
         // FIXME: should we really call this here? when using arrays in tight loops we need to hold on to them
         // and not trigger a wait
         // self.nvals();
-        grb_run( || {unsafe {
-            GrB_Vector_free(m_pointer)
-        }});
+        grb_run( || {unsafe {GrB_Vector_free(m_pointer)}});
     }
 }
 
@@ -196,15 +201,9 @@ macro_rules! make_matrix_like {
             type Item = $typ;
 
             fn insert(&mut self, row: u64, col: u64, val: Self::Item) {
-                unsafe {
-                    match $set_elem_func(self.mat, val, row, col) {
-                        0 => (),
-                        e => panic!(
-                            "Failed to set element at ({}, {})={} GrB_error: {}",
-                            row, col, val, e
-                        ),
-                    }
-                }
+                grb_run(|| {
+                    unsafe { $set_elem_func(self.mat, val, row, col) }
+                })
             }
 
             fn get(&mut self, i: u64, j: u64) -> Option<Self::Item> {
@@ -228,12 +227,10 @@ macro_rules! make_vector_like {
             type Item = $typ;
 
             fn insert(&mut self, i: u64, val: Self::Item) {
-                unsafe {
-                    match $set_elem_func(self.vec, val, i) {
-                        0 => (),
-                        e => panic!("Failed to set element at ({})={} GrB_error: {}", i, val, e),
-                    }
-                }
+                grb_run(|| {
+                    unsafe {$set_elem_func(self.vec, val, i)}
+                })
+               
             }
 
             fn get(&mut self, i: u64) -> Option<Self::Item> {

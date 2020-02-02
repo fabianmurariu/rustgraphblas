@@ -37,6 +37,8 @@ macro_rules! binary_ops_gen{
                 make_binary_op!($rust_tpe, $rust_tpe, [<GxB_LAND_ $grb_tpe>], land);
                 make_binary_op!($rust_tpe, $rust_tpe, [<GxB_LOR_ $grb_tpe>], lor);
                 make_binary_op!($rust_tpe, $rust_tpe, [<GxB_LXOR_ $grb_tpe>], lxor);
+                make_binary_op!($rust_tpe, $rust_tpe, [<GrB_FIRST_ $grb_tpe>], first);
+                make_binary_op!($rust_tpe, $rust_tpe, [<GrB_SECOND_ $grb_tpe>], second);
                 )*
         }
     }

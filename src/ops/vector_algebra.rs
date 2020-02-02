@@ -1,5 +1,5 @@
 use crate::ops::ffi::*;
-use crate::{SparseVector, SparseMatrix, VectorLike};
+use crate::{SparseVector, SparseMatrix, VectorLike };
 use crate::ops::types::*;
 use crate::ops::types::desc::*;
 use crate::ops::binops::*;
@@ -8,6 +8,33 @@ use std::ptr;
 
 pub fn empty_mask<B>() -> Option<&'static SparseVector<B>> {
     None::<&SparseVector<B>>
+}
+
+pub trait VectorBuilder<Z:TypeEncoder> {
+    fn load(&mut self, n:u64, zs: &[Z], is:&[u64]) -> &SparseVector<Z>;
+}
+
+macro_rules! make_vector_builder {
+    ( $rust_typ:ty, $grb_assign_fn:ident ) => {
+       impl VectorBuilder<$rust_typ> for SparseVector<$rust_typ> {
+
+           fn load(&mut self, n:u64, zs: &[$rust_typ], is:&[u64]) -> &SparseVector<$rust_typ> {
+               grb_run(|| {
+                    let dup = BinaryOp::<$rust_typ, $rust_typ, $rust_typ>::first();
+                   unsafe { $grb_assign_fn(self.vec, is.as_ptr(), zs.as_ptr(), n, dup.op) }
+               });
+               self
+           }
+
+
+       }
+    };
+}
+
+make_vector_builder!(bool, GrB_Vector_build_BOOL);
+
+pub trait MatrixBuilder<Z> {
+    fn load(&mut self, n:u64, zs: &[Z], is:&[u64], js:&[u64]) -> SparseMatrix<Z>;
 }
 
 pub trait VectorAlgebra<Z> {
