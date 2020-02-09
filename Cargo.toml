@@ -1,17 +1,18 @@
 [package]
-name = "libgraphblas"
-version = "0.1.0"
+name = "rustgrahblas"
+version = "0.1.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache-2.0"
+keywords = ["graphblas", "blas", "graph", "algorithms"]
+homepage = "https://github.com/fabianmurariu/libgraphblas"
+exclude = [".gitignore"]
 
 [dependencies]
 paste = "0.1"
 lazy_static = "1.4.0"
-enum_primitive = "0.1.1"
 enum-primitive-derive = "^0.1"
 num-traits = "^0.1"
 
 [build-dependencies]
-bindgen = "0.52"
+bindgen = "0.53.1"

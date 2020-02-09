@@ -17,16 +17,11 @@ Example of 1 hop neighbours
  * */
 fn define_graph_adj_matrix_one_hop_neighbours(){
     let mut m = SparseMatrix::<bool>::empty((7, 7));
-    m.insert(0, 1, true);
-    m.insert(0, 3, true);
-    m.insert(1, 6, true);
-    m.insert(1, 4, true);
-    m.insert(2, 5, true);
-    m.insert(3, 4, true);
-    m.insert(4, 5, true);
-    m.insert(5, 4, true);
-    m.insert(6, 2, true);
-    m.insert(6, 3, true);
+
+    let edges_n:usize = 10;
+    m.load(edges_n as u64, &vec![true; edges_n],
+           &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+           &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3]);
 
     let mut v = SparseVector::<bool>::empty(7);
     v.insert(0, true);

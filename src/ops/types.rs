@@ -38,9 +38,11 @@ make_base_sparse_type!(i32, GrB_INT32);
 make_base_sparse_type!(u32, GrB_UINT32);
 make_base_sparse_type!(i64, GrB_INT64);
 make_base_sparse_type!(u64, GrB_UINT64);
+make_base_sparse_type!(f32, GrB_FP32);
+make_base_sparse_type!(f64, GrB_FP64);
 
 pub mod desc {
-extern crate num_traits;
+    extern crate num_traits;
     use num_traits::{FromPrimitive, ToPrimitive};
     use std::mem::MaybeUninit;
     use crate::ops::ffi::*;

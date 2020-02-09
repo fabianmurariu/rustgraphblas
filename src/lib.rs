@@ -15,7 +15,6 @@ pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
 pub use crate::ops::vector_algebra::*;
 
-use enum_primitive::*;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
@@ -26,22 +25,6 @@ lazy_static! {
     static ref GRB: u32 = unsafe { GrB_init(GrB_Mode_GrB_NONBLOCKING) };
 }
 
-enum_from_primitive! {
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[repr(u32)]
-pub enum GrBIndex {
-    Success = GrB_Info_GrB_SUCCESS,
-    NoValue = GrB_Info_GrB_NO_VALUE,
-}
-}
-
-pub trait VectorBuilder<Z> {
-    fn load(&mut self, n:u64, zs: &[Z], is:&[u64]) -> SparseVector<Z>;
-}
-
-pub trait MatrixBuilder<Z> {
-    fn load(&mut self, n:u64, zs: &[Z], is:&[u64], js:&[u64]) -> SparseMatrix<Z>;
-}
 
 pub struct SparseMatrix<T> {
     mat: GrB_Matrix,
@@ -70,6 +53,12 @@ impl<T: TypeEncoder> SparseMatrix<T> {
     pub fn rows(&mut self) -> u64 {
         grb_call(|G:&mut MaybeUninit<u64>| {
             unsafe { GrB_Matrix_nrows(G.as_mut_ptr(), self.mat) }
+        })
+    }
+
+    pub fn cols(&mut self) -> u64 {
+        grb_call(|G:&mut MaybeUninit<u64>| {
+            unsafe { GrB_Matrix_ncols(G.as_mut_ptr(), self.mat) }
         })
     }
 
@@ -251,9 +240,7 @@ macro_rules! make_vector_like {
 #[test]
 fn vmx_bool() {
     let mut v = SparseVector::<bool>::empty(10);
-    v.insert(0, true);
-    v.insert(2, true);
-    v.insert(4, true);
+    v.load(3, &[true, true, true], &[0, 4, 2]);
 
     let mut A = SparseMatrix::<bool>::empty((10, 10));
     A.insert(0, 0, true);
@@ -300,16 +287,12 @@ fn reduce_vector_and_some_true_some_false() {
  * */
 fn define_graph_adj_matrix_one_hop_neighbours(){
     let mut m = SparseMatrix::<bool>::empty((7, 7));
-    m.insert(0, 1, true);
-    m.insert(0, 3, true);
-    m.insert(1, 6, true);
-    m.insert(1, 4, true);
-    m.insert(2, 5, true);
-    m.insert(3, 4, true);
-    m.insert(4, 5, true);
-    m.insert(5, 4, true);
-    m.insert(6, 2, true);
-    m.insert(6, 3, true);
+
+
+    let edges_n:usize = 10;
+    m.load(edges_n as u64, &vec![true; edges_n],
+           &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+           &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3]);
 
     let mut v = SparseVector::<bool>::empty(7);
     v.insert(0, true);
