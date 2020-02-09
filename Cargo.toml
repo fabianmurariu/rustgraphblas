@@ -6,6 +6,7 @@ edition = "2018"
 license = "Apache-2.0"
 keywords = ["graphblas", "blas", "graph", "algorithms"]
 homepage = "https://github.com/fabianmurariu/libgraphblas"
+description = "Wrapper for GraphBLAS.h exposing SparseMatrix and SparseVector"
 exclude = [".gitignore"]
 
 [dependencies]
