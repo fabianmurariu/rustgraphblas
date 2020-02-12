@@ -1,5 +1,5 @@
 [package]
-name = "rustgrahblas"
+name = "rustgraphblas"
 version = "0.1.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
 edition = "2018"

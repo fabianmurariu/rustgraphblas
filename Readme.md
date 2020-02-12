@@ -2,8 +2,12 @@
 
 Wrapper for `GraphBLAS.h` exposing a nicer rust API
 
-Allows a huge array of graph algorithms over graphs as adjacency matrices using
-different semigroups.
+Exposes a set of routines over sparse matrices and sparse vectors combined with
+various semigroups. This allows graphs to be represented as sparse matrices and
+various algorithms (bfs, connected components, page rank, ..) to be implemented
+as a set of linear algebra operations.
+
+More about GraphBLAS here[here](http://graphblas.org/index.php?title=Graph_BLAS_Forum) 
 
 Example of 1 hop neighbours
 
@@ -40,6 +44,6 @@ fn define_graph_adj_matrix_one_hop_neighbours(){
     assert_eq!(v.get(4), None);
     assert_eq!(v.get(5), None);
     assert_eq!(v.get(6), None);
-
+}
 
 ```

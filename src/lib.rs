@@ -17,6 +17,7 @@ pub use crate::ops::vector_algebra::*;
 
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::fmt;
 
 #[macro_use]
 extern crate lazy_static;
@@ -29,6 +30,14 @@ lazy_static! {
 pub struct SparseMatrix<T> {
     mat: GrB_Matrix,
     _marker: PhantomData<*const T>,
+}
+
+impl<T:TypeEncoder> fmt::Debug for SparseMatrix<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let shape = self.shape();
+        let nvals = self.nvals();
+        write!(f, "SparseMatrix[shape={:?}, vals={}]", shape, nvals)
+    }
 }
 
 pub struct SparseVector<T> {
@@ -50,16 +59,20 @@ impl<T: TypeEncoder> SparseMatrix<T> {
 
     }
 
-    pub fn rows(&mut self) -> u64 {
+    pub fn rows(&self) -> u64 {
         grb_call(|G:&mut MaybeUninit<u64>| {
             unsafe { GrB_Matrix_nrows(G.as_mut_ptr(), self.mat) }
         })
     }
 
-    pub fn cols(&mut self) -> u64 {
+    pub fn cols(&self) -> u64 {
         grb_call(|G:&mut MaybeUninit<u64>| {
             unsafe { GrB_Matrix_ncols(G.as_mut_ptr(), self.mat) }
         })
+    }
+
+    pub fn shape(&self) -> (u64, u64) {
+        (self.rows(), self.cols())
     }
 
     pub fn nvals(&self) -> u64 {

@@ -70,7 +70,9 @@ macro_rules! make_matrix_builder {
     };
 }
 
-make_matrix_builder!(bool, GrB_Matrix_build_BOOL);
+grb_trait_constructor!(make_matrix_builder; GrB_Matrix_build_;
+                       bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+                       BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
 pub trait VectorAlgebra<Z> {
 
@@ -167,7 +169,7 @@ impl <Z> VectorAlgebra<Z> for SparseVector<Z> {
             unsafe {GrB_vxm(self.vec, mask, acc, s_ring.s, self.vec, m.mat, desc.desc)}
         });
         self
-
+       
     }
 
 }
