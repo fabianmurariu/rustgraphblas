@@ -16,6 +16,7 @@ pub trait TypeEncoder {
 // manually define what types can act as a boolean mask (basically all basic types)
 pub trait CanBool {}
 impl CanBool for bool {}
+impl CanBool for i32 {}
 
 #[macro_export]
 macro_rules! make_base_sparse_type {
@@ -77,7 +78,7 @@ pub mod desc {
             Self::new()
         }
     }
-
+// FIXME: use grb_run and grb_call
     impl Descriptor {
         pub fn new() -> Descriptor {
             let mut X = MaybeUninit::<GrB_Descriptor>::uninit();
@@ -95,7 +96,7 @@ pub mod desc {
 
         }
 
-        pub fn set(&mut self, key: Field, value: Value) -> &Descriptor {
+        pub fn set(&mut self, key: Field, value: Value) -> &mut Descriptor {
             unsafe {
                 match GrB_Descriptor_set(self.desc, key.to_u32().unwrap(), value.to_u32().unwrap()) {
                     0 => self,

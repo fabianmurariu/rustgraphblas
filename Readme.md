@@ -9,41 +9,72 @@ as a set of linear algebra operations.
 
 More about GraphBLAS here[here](http://graphblas.org/index.php?title=Graph_BLAS_Forum) 
 
-Example of 1 hop neighbours
-
+Example of BFS from [bfs5m.c](https://github.com/fabianmurariu/SuiteSparse/blob/master/GraphBLAS/Demo/Source/bfs5m.c#L33)
 ```rust
 /**
  * this is the test for the graph on the cover of 
  * Graph Algorithms in the Language of Linear Algebra
  * where by multiplying a boolean matrix with 
- * a boolean vector on the and/or semiring we effectively find the neighbours
- * for the input vertex
+ * a boolean vector on the and/or semiring until there are no successor we get BFS
  * */
-fn define_graph_adj_matrix_one_hop_neighbours(){
-    let mut m = SparseMatrix::<bool>::empty((7, 7));
+fn graph_blas_port_bfs(){
+    let s:u64 = 0; // start at 0
+    let n = 7; //vertices
+
+    let mut A = SparseMatrix::<bool>::empty((n, n));
 
     let edges_n:usize = 10;
-    m.load(edges_n as u64, &vec![true; edges_n],
+    A.load(edges_n as u64, &vec![true; edges_n],
            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
-           &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3]);
+           &[1, 3, 6, 4, 5, 2, 5, 2, 2, 3]);
 
-    let mut v = SparseVector::<bool>::empty(7);
-    v.insert(0, true);
+    let mut v = SparseVector::<i32>::empty(n);
+    let mut q = SparseVector::<bool>::empty(n);
 
+    let mut default_desc = Descriptor::default();
+
+    // GrB_assign (v, NULL, NULL, 0, GrB_ALL, n, NULL) ;   // make v dense
+    v.assign_all(empty_mask::<bool>(), None, 0, n, &default_desc);
+
+    //finish pending work on v
+    assert_eq!(n, v.nvals());
+    // GrB_Vector_setElement (q, true, s) ;   // q[s] = true, false elsewhere
+    q.insert(s, true);
+
+    // GrB_Monoid_new (&Lor, GrB_LOR, (bool) false) ;
+    // GrB_Semiring_new (&Boolean, Lor, GrB_LAND) ;
+    // FIXME: Semirings do not OWN monoids
     let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
+    let lor_monoid2 = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
     let or_and_semi = Semiring::new(lor_monoid, BinaryOp::<bool, bool, bool>::land());
-    v.vxm(empty_mask::<bool>(), None, &m, or_and_semi, &Descriptor::default());
 
-    // neighbours of 0 are 1 and 3
-    assert_eq!(v.get(1), Some(true));
-    assert_eq!(v.get(3), Some(true));
 
-    // the rest is set to null
-    assert_eq!(v.get(0), None);
-    assert_eq!(v.get(2), None);
-    assert_eq!(v.get(4), None);
-    assert_eq!(v.get(5), None);
-    assert_eq!(v.get(6), None);
+    let mut desc = Descriptor::default();
+    desc.set(Field::Mask, Value::SCMP).set(Field::Output, Value::Replace);
+
+    let mut successor = true;
+
+    let mut level:i32 = 1;
+    while successor && level <= (n as i32) {
+        v.assign_all(Some(&q), None, level, n, &default_desc);
+
+        q.vxm(Some(&v), None, &A, &or_and_semi, &desc);
+
+        q.reduce(&mut successor, None, &lor_monoid2, &default_desc);
+
+        level = level + 1;
+    }
+    assert_eq!(v.get(0), Some(1));
+
+    assert_eq!(v.get(1), Some(2));
+    assert_eq!(v.get(3), Some(2));
+
+    assert_eq!(v.get(4), Some(3));
+    assert_eq!(v.get(6), Some(3));
+    assert_eq!(v.get(2), Some(3));
+
+    assert_eq!(v.get(5), Some(4));
+
 }
 
 ```

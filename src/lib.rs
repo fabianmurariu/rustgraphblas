@@ -8,6 +8,7 @@ extern crate enum_primitive_derive;
 extern crate num_traits;
 
 mod ops;
+mod algo;
 pub use crate::ops::binops::*;
 pub use crate::ops::ffi::*;
 pub use crate::ops::monoid::*;
@@ -294,7 +295,7 @@ mod tests {
         let land = BinaryOp::<bool, bool, bool>::land();
         let semi = Semiring::new(m, land);
 
-        v.vxm(empty_mask::<bool>(), None, &A, semi, &Descriptor::default());
+        v.vxm(empty_mask::<bool>(), None, &A, &semi, &Descriptor::default());
     }
 
     #[test]
@@ -306,7 +307,7 @@ mod tests {
         let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
         let desc = Descriptor::default();
 
-        assert_eq!(*v.reduce(&mut true, None, m, desc), true);
+        assert_eq!(*v.reduce(&mut true, None, &m, &desc), true);
     }
 
     #[test]
@@ -317,7 +318,7 @@ mod tests {
         let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), false);
         let desc = Descriptor::default();
 
-        assert_eq!(*v.reduce(&mut true, None, m, desc), false);
+        assert_eq!(*v.reduce(&mut true, None, &m, &desc), false);
     }
 
     #[test]
@@ -359,7 +360,7 @@ mod tests {
             empty_mask::<bool>(),
             None,
             &m,
-            or_and_semi,
+            &or_and_semi,
             &Descriptor::default(),
         );
 
