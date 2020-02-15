@@ -68,7 +68,7 @@ make_monoid_builder!(f32, GrB_Monoid_new_FP32);
 make_monoid_builder!(f64, GrB_Monoid_new_FP64);
 
 pub struct Semiring<A, B, C> {
-    monoid: SparseMonoid<C>,
+    _monoid: SparseMonoid<C>,
     pub(crate) s: GrB_Semiring,
     _a: PhantomData<*const A>,
     _b: PhantomData<*const B>,
@@ -83,7 +83,7 @@ impl<A, B, C> Semiring<A, B, C> {
                 0 => {
                     let s = S.as_mut_ptr();
                     Semiring {
-                        monoid: add,
+                        _monoid: add,
                         s: *s,
                         _a: PhantomData,
                         _b: PhantomData,
