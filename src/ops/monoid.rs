@@ -1,7 +1,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-// use tracing::{event, span, Level};
 use crate::ops::binops::*;
 use crate::ops::ffi::*;
 use std::marker::PhantomData;
@@ -25,7 +24,6 @@ pub trait MonoidBuilder<T> {
 impl<T> Drop for SparseMonoid<T> {
     fn drop(&mut self) {
         unsafe {
-            // FIXME: do we need to call GRB_wait here
             let m_pointer = &mut self.m as *mut GrB_Monoid;
             GrB_Monoid_free(m_pointer);
         }
@@ -37,19 +35,11 @@ macro_rules! make_monoid_builder {
     ( $typ:ty, $builder:ident ) => {
         impl MonoidBuilder<$typ> for $typ {
             fn new_monoid(binOp: BinaryOp<$typ, $typ, $typ>, default: $typ) -> SparseMonoid<$typ> {
-                let mut X = MaybeUninit::<GrB_Monoid>::uninit();
-                unsafe {
-                    match $builder(X.as_mut_ptr(), binOp.op, default) {
-                        0 => {
-                            let m = X.as_mut_ptr();
-                            SparseMonoid {
-                                m: *m,
-                                _t: PhantomData,
-                            }
-                        }
-                        e => panic!("Failed to create monoid default value GrB_error={}", e),
-                    }
-                }
+                let m = grb_call(|M:&mut MaybeUninit::<GrB_Monoid>|{
+                    unsafe {$builder(M.as_mut_ptr(), binOp.op, default)}
+                });
+
+                SparseMonoid {m, _t: PhantomData}
             }
         }
     };
@@ -67,39 +57,33 @@ make_monoid_builder!(u64, GrB_Monoid_new_UINT64);
 make_monoid_builder!(f32, GrB_Monoid_new_FP32);
 make_monoid_builder!(f64, GrB_Monoid_new_FP64);
 
-pub struct Semiring<A, B, C> {
-    _monoid: SparseMonoid<C>,
+pub struct Semiring<'a, A, B, C> {
+    _monoid: &'a SparseMonoid<C>,
     pub(crate) s: GrB_Semiring,
     _a: PhantomData<*const A>,
     _b: PhantomData<*const B>,
     _c: PhantomData<*const C>,
 }
 
-impl<A, B, C> Semiring<A, B, C> {
-    pub fn new(add: SparseMonoid<C>, multiply: BinaryOp<A, B, C>) -> Semiring<A, B, C> {
-        let mut S = MaybeUninit::<GrB_Semiring>::uninit();
-        unsafe {
-            match GrB_Semiring_new(S.as_mut_ptr(), add.m, multiply.op) {
-                0 => {
-                    let s = S.as_mut_ptr();
-                    Semiring {
-                        _monoid: add,
-                        s: *s,
-                        _a: PhantomData,
-                        _b: PhantomData,
-                        _c: PhantomData,
-                    }
-                }
-                e => panic!("Unable to make Semiring GrB_error {}", e),
-            }
+impl<'a, A, B, C> Semiring<'a, A, B, C> {
+    pub fn new(add: &'a SparseMonoid<C>, multiply: BinaryOp<A, B, C>) -> Semiring<'a, A, B, C> {
+        let s = grb_call(|S: &mut MaybeUninit<GrB_Semiring>| unsafe {
+            GrB_Semiring_new(S.as_mut_ptr(), add.m, multiply.op)
+        });
+
+        Semiring {
+            _monoid: add,
+            s,
+            _a: PhantomData,
+            _b: PhantomData,
+            _c: PhantomData,
         }
     }
 }
 
-impl<A, B, C> Drop for Semiring<A, B, C> {
+impl<'a, A, B, C> Drop for Semiring<'a, A, B, C> {
     fn drop(&mut self) {
         unsafe {
-            //FIXME: Do we need to call some sort of GrB_wait to let all the computations using this semiring to finish?
             let m_pointer = &mut self.s as *mut GrB_Semiring;
             GrB_Semiring_free(m_pointer);
         }
@@ -110,6 +94,5 @@ impl<A, B, C> Drop for Semiring<A, B, C> {
 fn create_semiring_bool_i32() {
     let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
     let land = BinaryOp::<bool, bool, bool>::land();
-    Semiring::new(m, land);
+    Semiring::new(&m, land);
 }
-

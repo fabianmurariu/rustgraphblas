@@ -1,13 +1,12 @@
-use std::collections::HashSet;
 use crate::ops::ffi::*;
 use crate::*;
 use crate::ops::types::*;
 use crate::ops::types::desc::*;
 use crate::ops::binops::*;
 use crate::ops::monoid::*;
-use crate::ops::vector_algebra::*;
 
 use std::ptr;
+use std::collections::HashSet;
 
 pub fn empty_matrix_mask<B>() -> Option<&'static SparseMatrix<B>> {
     None::<&SparseMatrix<B>>
@@ -24,14 +23,6 @@ pub trait MatrixAlgebra<X> { // A
         desc: &Descriptor,
     ) -> SparseMatrix<Z>; // C
 
-    // fn mxm_mut<Y, Z, B:CanBool>(
-    //     &mut self,
-    //     mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
-    //     accum: Option<&BinaryOp<Z, Z, Z>>,
-    //     B: &SparseMatrix<Y>,
-    //     s_ring: Semiring<X, Y, Z>,
-    //     desc: &Descriptor,
-    // ) -> &mut SparseMatrix<Z>;
 }
 
 impl <X:TypeEncoder> MatrixAlgebra<X> for SparseMatrix<X> {
@@ -76,7 +67,7 @@ fn multiply_2_matrices_with_mxm_for_bfs_no_transpose() {
     B.insert(1, 6, true);
 
     let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
-    let or_and_semi = Semiring::new(lor_monoid, BinaryOp::<bool, bool, bool>::land());
+    let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
     let C = B.mxm(empty_matrix_mask::<bool>(), None, &A, or_and_semi, &Descriptor::default());
     let (r, c) = C.shape();
@@ -117,7 +108,7 @@ fn graph_blas_port_bfs(){
     let mut v = SparseVector::<i32>::empty(n);
     let mut q = SparseVector::<bool>::empty(n);
 
-    let mut default_desc = Descriptor::default();
+    let default_desc = Descriptor::default();
 
     // GrB_assign (v, NULL, NULL, 0, GrB_ALL, n, NULL) ;   // make v dense
     v.assign_all(empty_mask::<bool>(), None, 0, n, &default_desc);
@@ -129,10 +120,8 @@ fn graph_blas_port_bfs(){
 
     // GrB_Monoid_new (&Lor, GrB_LOR, (bool) false) ;
     // GrB_Semiring_new (&Boolean, Lor, GrB_LAND) ;
-    // FIXME: Semirings do not OWN monoids
     let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
-    let lor_monoid2 = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
-    let or_and_semi = Semiring::new(lor_monoid, BinaryOp::<bool, bool, bool>::land());
+    let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
 
     let mut desc = Descriptor::default();
@@ -146,7 +135,7 @@ fn graph_blas_port_bfs(){
 
         q.vxm(Some(&v), None, &A, &or_and_semi, &desc);
 
-        q.reduce(&mut successor, None, &lor_monoid2, &default_desc);
+        q.reduce(&mut successor, None, &lor_monoid, &default_desc);
 
         level = level + 1;
     }
@@ -160,6 +149,5 @@ fn graph_blas_port_bfs(){
     assert_eq!(v.get(2), Some(3));
 
     assert_eq!(v.get(5), Some(4));
-
 
 }

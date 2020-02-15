@@ -78,41 +78,28 @@ pub mod desc {
             Self::new()
         }
     }
-// FIXME: use grb_run and grb_call
+
     impl Descriptor {
         pub fn new() -> Descriptor {
-            let mut X = MaybeUninit::<GrB_Descriptor>::uninit();
-            unsafe {
-                match GrB_Descriptor_new(X.as_mut_ptr()) {
-                    0 => {
-                        let desc = X.as_mut_ptr();
-                        Descriptor {
-                            desc : *desc
-                        }
-                    },
-                    e => panic!("Unable to create Descriptor GrB_info {}", e)
-                }
-            }
-
+            let desc = grb_call(|D: &mut MaybeUninit::<GrB_Descriptor>| {
+                unsafe {GrB_Descriptor_new(D.as_mut_ptr()) }
+            });
+            Descriptor{desc}
         }
 
         pub fn set(&mut self, key: Field, value: Value) -> &mut Descriptor {
-            unsafe {
-                match GrB_Descriptor_set(self.desc, key.to_u32().unwrap(), value.to_u32().unwrap()) {
-                    0 => self,
-                    e => panic!("Unable to set {:?}={:?} GrB_error {}", key, value, e)
-                }
+            grb_run(|| {unsafe {
+                GrB_Descriptor_set(self.desc, key.to_u32().unwrap(), value.to_u32().unwrap())
             }
+            });
+            self
         }
 
         pub fn get(&self, key:Field) -> Option<Value> {
-            let mut X = MaybeUninit::<GrB_Desc_Value>::uninit();
-            unsafe {
-                match GxB_Descriptor_get( X.as_mut_ptr(), self.desc, key.to_u32().unwrap()) {
-                    0 => Value::from_u32(X.assume_init()),
-                    e => panic!("Unable to GET descriptor for {:?} GrB_error {}", key, e)
-                }
-            }
+            let value = grb_call(|X: &mut MaybeUninit::<GrB_Desc_Value>|{
+                unsafe {GxB_Descriptor_get( X.as_mut_ptr(), self.desc, key.to_u32().unwrap())}
+            });
+            Value::from_u32(value)
         }
 
     }

@@ -7,7 +7,7 @@ various semigroups. This allows graphs to be represented as sparse matrices and
 various algorithms (bfs, connected components, page rank, ..) to be implemented
 as a set of linear algebra operations.
 
-More about GraphBLAS here[here](http://graphblas.org/index.php?title=Graph_BLAS_Forum) 
+More about GraphBLAS [here](http://graphblas.org/index.php?title=Graph_BLAS_Forum) 
 
 Example of BFS from [bfs5m.c](https://github.com/fabianmurariu/SuiteSparse/blob/master/GraphBLAS/Demo/Source/bfs5m.c#L33)
 ```rust

@@ -293,7 +293,7 @@ mod tests {
 
         let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let land = BinaryOp::<bool, bool, bool>::land();
-        let semi = Semiring::new(m, land);
+        let semi = Semiring::new(&m, land);
 
         v.vxm(empty_mask::<bool>(), None, &A, &semi, &Descriptor::default());
     }
@@ -355,7 +355,7 @@ mod tests {
         v.insert(0, true);
 
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
-        let or_and_semi = Semiring::new(lor_monoid, BinaryOp::<bool, bool, bool>::land());
+        let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
         v.vxm(
             empty_mask::<bool>(),
             None,
