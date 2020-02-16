@@ -7,14 +7,15 @@
 extern crate enum_primitive_derive;
 extern crate num_traits;
 
-mod ops;
-mod algo;
+pub mod ops;
+pub mod algo;
 pub use crate::ops::binops::*;
 pub use crate::ops::ffi::*;
 pub use crate::ops::monoid::*;
 pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
 pub use crate::ops::vector_algebra::*;
+pub use crate::ops::matrix_algebra::*;
 
 use std::fmt;
 use std::marker::PhantomData;
