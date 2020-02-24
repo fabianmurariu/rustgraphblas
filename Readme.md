@@ -3,7 +3,7 @@
 Wrapper for `GraphBLAS.h` exposing a nicer rust API
 
 Exposes a set of routines over sparse matrices and sparse vectors combined with
-various semigroups. This allows graphs to be represented as sparse matrices and
+various semirings. This allows graphs to be represented as sparse matrices and
 various algorithms (bfs, connected components, page rank, ..) to be implemented
 as a set of linear algebra operations.
 
