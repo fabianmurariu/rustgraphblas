@@ -17,6 +17,7 @@ pub use crate::ops::types::*;
 pub use crate::ops::vector_algebra::*;
 pub use crate::ops::matrix_algebra::*;
 
+use std::ptr;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -151,6 +152,8 @@ pub trait MatrixLike {
 
     fn insert(&mut self, row: u64, col: u64, val: Self::Item);
     fn get(&self, i: u64, j: u64) -> Option<Self::Item>;
+    fn resize(&mut self, new_row:u64, new_col:u64);
+    fn transpose_mut(&mut self) -> &Self;
 }
 
 impl<T> Drop for SparseMatrix<T> {
@@ -175,6 +178,7 @@ pub trait VectorLike {
     type Item;
     fn insert(&mut self, i: u64, val: Self::Item);
     fn get(&self, i: u64) -> Option<Self::Item>;
+    fn resize(&mut self, new_size:u64);
 }
 
 macro_rules! sparse_vector_tpe_gen{
@@ -219,6 +223,17 @@ macro_rules! make_matrix_like {
                     }
                 }
             }
+
+            fn resize(&mut self, new_row:u64, new_col:u64) {
+                grb_run(|| unsafe { GxB_Matrix_resize(self.mat, new_row, new_col) })
+            }
+
+            fn transpose_mut(&mut self) -> &Self {
+                grb_run(|| unsafe {
+                    GrB_transpose(self.mat, ptr::null_mut::<GB_Matrix_opaque>(), ptr::null_mut::<GB_BinaryOp_opaque>(), self.mat, Descriptor::new().set(Field::Input0, Value::Transpose).desc)
+                });
+                self
+            }
         }
     };
 }
@@ -242,6 +257,10 @@ macro_rules! make_vector_like {
                         e => panic!("Failed to get element at ({}) GrB_error: {}", i, e),
                     }
                 }
+            }
+
+            fn resize(&mut self, new_size:u64) {
+                grb_run(|| unsafe { GxB_Vector_resize(self.vec, new_size) })
             }
         }
     };
@@ -375,5 +394,48 @@ mod tests {
         assert_eq!(v.get(4), None);
         assert_eq!(v.get(5), None);
         assert_eq!(v.get(6), None);
+    }
+
+    #[test]
+    fn resize_changes_the_shape_of_a_vector(){
+        let mut v = SparseVector::<bool>::empty(5);
+
+        let s = v.size();
+        assert_eq!(s, 5);
+
+        v.resize(10);
+
+        let s = v.size();
+        assert_eq!(s, 10);
+    }
+
+    #[test]
+    fn resize_changes_the_shape_of_a_matrix(){
+        let mut v = SparseMatrix::<bool>::empty((5, 7));
+
+        let (r, c) = v.shape();
+        assert_eq!(r, 5);
+        assert_eq!(c, 7);
+
+        v.resize(9, 8);
+
+        let (r, c) = v.shape();
+        assert_eq!(r, 9);
+        assert_eq!(c, 8);
+    }
+
+    #[test]
+    fn transpose_flips_the_shape_of_the_matrix(){
+        let mut v = SparseMatrix::<bool>::empty((5, 7));
+
+        let (r, c) = v.shape();
+        assert_eq!(r, 5);
+        assert_eq!(c, 7);
+
+        v.transpose_mut();
+
+        let (r, c) = v.shape();
+        assert_eq!(r, 5);
+        assert_eq!(c, 7);
     }
 }
