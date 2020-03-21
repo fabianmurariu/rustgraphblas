@@ -1,6 +1,6 @@
 [package]
 name = "rustgraphblas"
-version = "0.6.0-alpha"
+version = "0.7.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -14,6 +14,7 @@ paste = "0.1"
 lazy_static = "1.4.0"
 enum-primitive-derive = "^0.1"
 num-traits = "^0.1"
+either = "^1.5"
 
 [build-dependencies]
 bindgen = "0.53.1"

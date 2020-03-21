@@ -5,6 +5,7 @@ use crate::ops::types::desc::*;
 use crate::ops::binops::*;
 use crate::ops::monoid::*;
 
+use either::*;
 use std::ptr;
 use std::collections::HashSet;
 
@@ -49,6 +50,146 @@ impl <X:TypeEncoder> MatrixAlgebra<X> for SparseMatrix<X> {
         C
     }
 
+}
+
+
+pub trait ElemWiseAlgebra<X> {
+    // intersection
+    fn elem_wise_mul<Y, Z:TypeEncoder, B:CanBool>(
+        &self,
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<Z, Z, Z>>,
+        B: &SparseMatrix<Y>,
+        s_ring: Either<&Semiring<X, Y, Z>, &BinaryOp<X, Y, Z>>,
+        desc: &Descriptor
+    ) -> SparseMatrix<Z>;
+
+    // union
+    fn elem_wise_add<Y, Z:TypeEncoder, B:CanBool>(
+        &self,
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<Z, Z, Z>>,
+        B: &SparseMatrix<Y>,
+        s_ring: Either<&Semiring<X, Y, Z>, &BinaryOp<X, Y, Z>>,
+        desc: &Descriptor
+    ) -> SparseMatrix<Z>;
+}
+
+impl <X:TypeEncoder> ElemWiseAlgebra<X> for SparseMatrix<X> {
+
+    fn elem_wise_mul<Y, Z:TypeEncoder, B:CanBool>(
+        &self, // A
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<Z, Z, Z>>,
+        B: &SparseMatrix<Y>, // B
+        s_ring: Either<&Semiring<X, Y, Z>, &BinaryOp<X, Y, Z>>,
+        desc: &Descriptor,
+    ) -> SparseMatrix<Z> // C
+    {
+        let (m, n) = self.shape();
+
+        let mask = mask.map(|x| x.mat).unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
+        let acc = accum.map(|x| x.op).unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
+
+        let C = SparseMatrix::<Z>::empty((m, n)); // this is actually mutated by the row below
+        grb_run(||{
+            unsafe{
+                match s_ring{
+                    Left(semi) => GrB_eWiseMult_Matrix_Semiring(C.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc),
+                    Right(op) => GrB_eWiseMult_Matrix_BinaryOp(C.mat, mask, acc, op.op, self.mat, B.mat, desc.desc)
+                }
+            }
+        });
+        C
+    }
+
+    fn elem_wise_add<Y, Z:TypeEncoder, B:CanBool>(
+        &self, // A
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<Z, Z, Z>>,
+        B: &SparseMatrix<Y>, // B
+        s_ring: Either<&Semiring<X, Y, Z>, &BinaryOp<X, Y, Z>>,
+        desc: &Descriptor,
+    ) -> SparseMatrix<Z> // C
+    {
+        let (m, n) = self.shape();
+
+        let mask = mask.map(|x| x.mat).unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
+        let acc = accum.map(|x| x.op).unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
+
+        let C = SparseMatrix::<Z>::empty((m, n)); // this is actually mutated by the row below
+        grb_run(||{
+            unsafe{
+                match s_ring {
+                    Left(semi) => GrB_eWiseAdd_Matrix_Semiring(C.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc),
+                    Right(op) => GrB_eWiseAdd_Matrix_BinaryOp(C.mat, mask, acc, op.op, self.mat, B.mat, desc.desc),
+                }
+            }
+        });
+        C
+    }
+}
+
+#[test]
+fn element_wise_mult_A_or_B() {
+
+    let mut a = SparseMatrix::<bool>::empty((2, 2));
+    a.insert(0, 0, true);
+    a.insert(1, 1, true);
+
+    let mut b = SparseMatrix::<bool>::empty((2, 2));
+    b.insert(1, 1, true);
+
+    let or = BinaryOp::<bool, bool, bool>::lor();
+
+    // mul is an intersection
+    let c = a.elem_wise_mul(empty_matrix_mask::<bool>(), None, &b, Right(&or), &Descriptor::default());
+
+    assert_eq!(c.get(0, 0), None);
+    assert_eq!(c.get(1, 1), Some(true));
+    assert_eq!(c.get(0, 1), None);
+    assert_eq!(c.get(1, 0), None);
+}
+
+#[test]
+fn element_wise_add_A_or_B() {
+
+    let mut a = SparseMatrix::<bool>::empty((2, 2));
+    a.insert(0, 0, true);
+
+    let mut b = SparseMatrix::<bool>::empty((2, 2));
+    b.insert(1, 1, true);
+
+    let or = BinaryOp::<bool, bool, bool>::lor();
+
+    let c = a.elem_wise_add(empty_matrix_mask::<bool>(), None, &b, Right(&or), &Descriptor::default());
+
+    assert_eq!(c.get(0, 0), Some(true));
+    assert_eq!(c.get(1, 1), Some(true));
+    assert_eq!(c.get(0, 1), None);
+    assert_eq!(c.get(1, 0), None);
+}
+
+#[test]
+fn element_wise_add_A_and_B() {
+
+    let mut a = SparseMatrix::<bool>::empty((2, 2));
+    a.insert(0, 0, true);
+    a.insert(0, 1, true);
+
+    let mut b = SparseMatrix::<bool>::empty((2, 2));
+    b.insert(1, 1, true);
+    a.insert(0, 1, true);
+
+    let and = BinaryOp::<bool, bool, bool>::land();
+
+    // add is a union of a and b
+    let c = a.elem_wise_add(empty_matrix_mask::<bool>(), None, &b, Right(&and), &Descriptor::default());
+
+    assert_eq!(c.get(0, 0), Some(true)); // from a
+    assert_eq!(c.get(1, 1), Some(true)); // from b
+    assert_eq!(c.get(0, 1), Some(true)); // from a and b
+    assert_eq!(c.get(1, 0), None); // not present
 }
 
 #[test]
