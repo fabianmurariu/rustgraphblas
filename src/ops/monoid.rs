@@ -35,11 +35,11 @@ macro_rules! make_monoid_builder {
     ( $typ:ty, $builder:ident ) => {
         impl MonoidBuilder<$typ> for $typ {
             fn new_monoid(binOp: BinaryOp<$typ, $typ, $typ>, default: $typ) -> SparseMonoid<$typ> {
-                let m = grb_call(|M:&mut MaybeUninit::<GrB_Monoid>|{
-                    unsafe {$builder(M.as_mut_ptr(), binOp.op, default)}
+                let m = grb_call(|M: &mut MaybeUninit<GrB_Monoid>| unsafe {
+                    $builder(M.as_mut_ptr(), binOp.op, default)
                 });
 
-                SparseMonoid {m, _t: PhantomData}
+                SparseMonoid { m, _t: PhantomData }
             }
         }
     };
@@ -90,9 +90,13 @@ impl<'a, A, B, C> Drop for Semiring<'a, A, B, C> {
     }
 }
 
-#[test]
-fn create_semiring_bool_i32() {
-    let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
-    let land = BinaryOp::<bool, bool, bool>::land();
-    Semiring::new(&m, land);
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_semiring_bool_i32() {
+        let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
+        let land = BinaryOp::<bool, bool, bool>::land();
+        Semiring::new(&m, land);
+    }
 }

@@ -4,3 +4,4 @@ pub mod ffi;
 pub mod types;
 pub mod vector_algebra;
 pub mod matrix_algebra;
+pub mod elem_wise;

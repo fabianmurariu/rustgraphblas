@@ -7,20 +7,21 @@
 extern crate enum_primitive_derive;
 extern crate num_traits;
 
-pub mod ops;
 pub mod algo;
+pub mod ops;
 pub use crate::ops::binops::*;
 pub use crate::ops::ffi::*;
+pub use crate::ops::matrix_algebra::*;
 pub use crate::ops::monoid::*;
 pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
 pub use crate::ops::vector_algebra::*;
-pub use crate::ops::matrix_algebra::*;
+pub use crate::ops::elem_wise::*;
 
-use std::ptr;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ptr;
 
 use num_traits::{FromPrimitive, ToPrimitive};
 #[macro_use]
@@ -40,7 +41,14 @@ impl<T> fmt::Debug for SparseMatrix<T> {
         let (r, c) = self.shape();
         let nvals = self.nvals();
         let format = self.get_format();
-        write!(f, "SparseMatrix[shape=({}x{}), vals={}, format={}]", r, c, nvals, format.to_u32().unwrap())
+        write!(
+            f,
+            "SparseMatrix[shape=({}x{}), vals={}, format={}]",
+            r,
+            c,
+            nvals,
+            format.to_u32().unwrap()
+        )
     }
 }
 
@@ -121,6 +129,40 @@ impl<T> SparseMatrix<T> {
         });
         MatrixFormat::from_u32(grb_fmt).unwrap()
     }
+
+    pub fn resize(&mut self, new_row: u64, new_col: u64) {
+        grb_run(|| unsafe { GxB_Matrix_resize(self.mat, new_row, new_col) })
+    }
+
+    pub fn clear(&mut self) {
+        grb_run(|| unsafe { GrB_Matrix_clear(self.mat) })
+    }
+
+    pub fn transpose_mut(&mut self) -> &Self {
+        grb_run(|| unsafe {
+            GrB_transpose(
+                self.mat,
+                ptr::null_mut::<GB_Matrix_opaque>(),
+                ptr::null_mut::<GB_BinaryOp_opaque>(),
+                self.mat,
+                Descriptor::new().set(Field::Input0, Value::Transpose).desc,
+            )
+        });
+        self
+    }
+}
+
+impl<T> Clone for SparseMatrix<T> {
+    fn clone(&self) -> Self {
+        let c = grb_call(|M: &mut MaybeUninit<GrB_Matrix>| unsafe {
+            GrB_Matrix_dup(M.as_mut_ptr(), self.mat)
+        });
+
+        SparseMatrix {
+            mat: c,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<T: TypeEncoder> SparseVector<T> {
@@ -145,6 +187,23 @@ impl<T> SparseVector<T> {
     pub fn size(&self) -> u64 {
         grb_call(|G: &mut MaybeUninit<u64>| unsafe { GrB_Vector_size(G.as_mut_ptr(), self.vec) })
     }
+
+    pub fn resize(&mut self, new_size: u64) {
+        grb_run(|| unsafe { GxB_Vector_resize(self.vec, new_size) })
+    }
+}
+
+impl<T> Clone for SparseVector<T> {
+    fn clone(&self) -> Self {
+        let c = grb_call(|M: &mut MaybeUninit<GrB_Vector>| unsafe {
+            GrB_Vector_dup(M.as_mut_ptr(), self.vec)
+        });
+
+        SparseVector {
+            vec: c,
+            _marker: PhantomData,
+        }
+    }
 }
 
 pub trait MatrixLike {
@@ -152,8 +211,6 @@ pub trait MatrixLike {
 
     fn insert(&mut self, row: u64, col: u64, val: Self::Item);
     fn get(&self, i: u64, j: u64) -> Option<Self::Item>;
-    fn resize(&mut self, new_row:u64, new_col:u64);
-    fn transpose_mut(&mut self) -> &Self;
 }
 
 impl<T> Drop for SparseMatrix<T> {
@@ -178,7 +235,9 @@ pub trait VectorLike {
     type Item;
     fn insert(&mut self, i: u64, val: Self::Item);
     fn get(&self, i: u64) -> Option<Self::Item>;
-    fn resize(&mut self, new_size:u64);
+    fn size(&self) -> u64;
+    fn nvals(&self) -> u64;
+
 }
 
 macro_rules! sparse_vector_tpe_gen{
@@ -223,17 +282,6 @@ macro_rules! make_matrix_like {
                     }
                 }
             }
-
-            fn resize(&mut self, new_row:u64, new_col:u64) {
-                grb_run(|| unsafe { GxB_Matrix_resize(self.mat, new_row, new_col) })
-            }
-
-            fn transpose_mut(&mut self) -> &Self {
-                grb_run(|| unsafe {
-                    GrB_transpose(self.mat, ptr::null_mut::<GB_Matrix_opaque>(), ptr::null_mut::<GB_BinaryOp_opaque>(), self.mat, Descriptor::new().set(Field::Input0, Value::Transpose).desc)
-                });
-                self
-            }
         }
     };
 }
@@ -259,16 +307,71 @@ macro_rules! make_vector_like {
                 }
             }
 
-            fn resize(&mut self, new_size:u64) {
-                grb_run(|| unsafe { GxB_Vector_resize(self.vec, new_size) })
+            fn size(&self) -> u64 {
+                self.size()
+            }
+
+            fn nvals(&self) -> u64 {
+                self.nvals()
             }
         }
     };
 }
 
+pub struct SparseVectorIterator<'a, V, T>
+where
+    V: VectorLike<Item = T>,
+{
+    pos: u64,
+    size: u64,
+    vec: &'a V,
+}
+
+impl<'a, V, T> SparseVectorIterator<'a, V, T>
+where
+    V: VectorLike<Item = T>,
+{
+    pub fn new(v: &'a V) -> Self {
+        SparseVectorIterator {
+            pos: 0,
+            size: v.size(),
+            vec: v,
+        }
+    }
+}
+
+impl<'a, V, T> Iterator for SparseVectorIterator<'a, V, T>
+where
+    V: VectorLike<Item = T>,
+{
+    type Item = Option<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.size {
+            let out = Some(self.vec.get(self.pos));
+            self.pos += 1;
+            out
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vector_iterator() {
+        let mut v = SparseVector::<i32>::empty(5);
+        v.load(&[11, 22, 33], &[0, 2, 3]);
+
+        let iter = SparseVectorIterator::new(&v);
+
+        let out: Vec<Option<i32>> = iter.collect();
+
+        assert_eq!(out, vec!(Some(11), None, Some(22), Some(33), None));
+    }
 
     #[test]
     fn create_bool_sparse_matrix() {
@@ -304,7 +407,7 @@ mod tests {
     #[test]
     fn vmx_bool() {
         let mut v = SparseVector::<bool>::empty(10);
-        v.load(3, &[true, true, true], &[0, 4, 2]);
+        v.load(&[true, true, true], &[0, 4, 2]);
 
         let mut A = SparseMatrix::<bool>::empty((10, 10));
         A.insert(0, 0, true);
@@ -315,7 +418,13 @@ mod tests {
         let land = BinaryOp::<bool, bool, bool>::land();
         let semi = Semiring::new(&m, land);
 
-        v.vxm(empty_mask::<bool>(), None, &A, &semi, &Descriptor::default());
+        v.vxm(
+            empty_vector_mask::<bool>(),
+            None,
+            &A,
+            &semi,
+            &Descriptor::default(),
+        );
     }
 
     #[test]
@@ -365,7 +474,6 @@ mod tests {
 
         let edges_n: usize = 10;
         m.load(
-            edges_n as u64,
             &vec![true; edges_n],
             &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
             &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
@@ -377,7 +485,7 @@ mod tests {
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
         v.vxm(
-            empty_mask::<bool>(),
+            empty_vector_mask::<bool>(),
             None,
             &m,
             &or_and_semi,
@@ -397,7 +505,7 @@ mod tests {
     }
 
     #[test]
-    fn resize_changes_the_shape_of_a_vector(){
+    fn resize_changes_the_shape_of_a_vector() {
         let mut v = SparseVector::<bool>::empty(5);
 
         let s = v.size();
@@ -410,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn resize_changes_the_shape_of_a_matrix(){
+    fn resize_changes_the_shape_of_a_matrix() {
         let mut v = SparseMatrix::<bool>::empty((5, 7));
 
         let (r, c) = v.shape();
@@ -425,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn transpose_flips_the_shape_of_the_matrix(){
+    fn transpose_flips_the_shape_of_the_matrix() {
         let mut v = SparseMatrix::<bool>::empty((5, 7));
 
         let (r, c) = v.shape();
@@ -437,5 +545,25 @@ mod tests {
         let (r, c) = v.shape();
         assert_eq!(r, 5);
         assert_eq!(c, 7);
+    }
+
+    #[test]
+    fn clone_a_matrix() {
+        let mut m = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        m.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
+        );
+
+        let n = m.clone();
+
+        assert_eq!(n.get(0, 1), Some(true));
+        assert_eq!(n.get(0, 3), Some(true));
+        assert_eq!(n.get(1, 6), Some(true));
+        assert_eq!(n.get(1, 4), Some(true));
+        assert_eq!(n.get(2, 5), Some(true));
     }
 }
