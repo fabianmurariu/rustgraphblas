@@ -22,6 +22,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr;
+use std::ops::Range;
 
 use num_traits::{FromPrimitive, ToPrimitive};
 #[macro_use]
@@ -104,6 +105,67 @@ impl<T: TypeEncoder> SparseMatrix<T> {
     pub fn empty_csc(size: (u64, u64)) -> SparseMatrix<T> {
         SparseMatrix::<T>::empty_mat(size, Some(MatrixFormat::CSC))
     }
+
+
+    pub fn transpose(&self) -> SparseMatrix<T> {
+        self.transpose_all(empty_matrix_mask::<bool>(), None, &Descriptor::default())
+    }
+
+    pub fn transpose_all<B:CanBool>(
+        &self,
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<T, T, T>>,
+        desc: &Descriptor
+    ) -> SparseMatrix<T> {
+        let (m, n) = self.shape();
+
+
+        let c = if let Some(Value::Transpose) = desc.get(Field::Input0) {
+            SparseMatrix::<T>::empty((m, n)) // no change at all
+        } else {
+            SparseMatrix::<T>::empty((n, m)) // do the transpose
+        };
+
+        let mask = mask
+            .map(|x| x.mat)
+            .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
+        let acc = accum
+            .map(|x| x.op)
+            .unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
+
+        grb_run(|| unsafe {
+            GrB_transpose(
+                c.mat,
+                mask,
+                acc,
+                self.mat,
+                desc.desc,
+            )
+        });
+        c
+    }
+
+    pub fn extract(&self, l:Range<u64>, r:Range<u64>) -> SparseMatrix<T> {
+
+        let is = vec!(l.start, l.end - 1);
+        let js = vec!(r.start, r.end - 1);
+        let c = SparseMatrix::<T>::empty((l.end, r.end));
+        let d = Descriptor::default();
+        grb_run(|| unsafe {
+            GrB_Matrix_extract(
+                c.mat,
+                ptr::null_mut::<GB_Matrix_opaque>(),
+                ptr::null_mut::<GB_BinaryOp_opaque>(),
+                self.mat,
+                is.as_ptr(),
+                GxB_RANGE as u64,
+                js.as_ptr(),
+                GxB_RANGE as u64,
+                d.desc
+            )
+        });
+        c
+    }
 }
 
 impl<T> SparseMatrix<T> {
@@ -138,18 +200,7 @@ impl<T> SparseMatrix<T> {
         grb_run(|| unsafe { GrB_Matrix_clear(self.mat) })
     }
 
-    pub fn transpose_mut(&mut self) -> &Self {
-        grb_run(|| unsafe {
-            GrB_transpose(
-                self.mat,
-                ptr::null_mut::<GB_Matrix_opaque>(),
-                ptr::null_mut::<GB_BinaryOp_opaque>(),
-                self.mat,
-                Descriptor::new().set(Field::Input0, Value::Transpose).desc,
-            )
-        });
-        self
-    }
+
 }
 
 impl<T> Clone for SparseMatrix<T> {
@@ -534,17 +585,17 @@ mod tests {
 
     #[test]
     fn transpose_flips_the_shape_of_the_matrix() {
-        let mut v = SparseMatrix::<bool>::empty((5, 7));
+        let v = SparseMatrix::<bool>::empty((5, 7));
 
         let (r, c) = v.shape();
         assert_eq!(r, 5);
         assert_eq!(c, 7);
 
-        v.transpose_mut();
+        let u = v.transpose();
 
-        let (r, c) = v.shape();
-        assert_eq!(r, 5);
-        assert_eq!(c, 7);
+        let (r, c) = u.shape();
+        assert_eq!(r, 7);
+        assert_eq!(c, 5);
     }
 
     #[test]
@@ -565,5 +616,39 @@ mod tests {
         assert_eq!(n.get(1, 6), Some(true));
         assert_eq!(n.get(1, 4), Some(true));
         assert_eq!(n.get(2, 5), Some(true));
+    }
+
+    #[test]
+    fn extract_sub_matrix() {
+
+        let mut m = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        m.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
+        );
+
+        let mut n = m.extract(0 .. 4, 0 .. 4);
+        assert_eq!(n.shape(), (4, 4));
+
+
+        for i in 0..4 {
+            for j in 0..4 {
+                if i != 0 {
+                    if j != 1 || j != 3 {
+                        assert_eq!(n.get(i, j), None);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(n.get(0, 1), Some(true));
+        assert_eq!(n.get(0, 3), Some(true));
+
+        n.insert(1, 1, true);
+        assert_eq!(n.get(1, 1), Some(true));
+        assert_eq!(m.get(1, 1), None); // extract does a copy, it is not a view
     }
 }

@@ -35,3 +35,7 @@ where
     F: FnMut() -> u32 {
     handle_grb_response(grb_fn());
 }
+
+pub const GxB_RANGE:i64     = std::i64::MAX;
+pub const GxB_STRIDE:i64    = std::i64::MAX-1;
+pub const GxB_BACKWARDS:i64 = std::i64::MAX-2;
