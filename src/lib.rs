@@ -282,6 +282,7 @@ impl<T> Drop for SparseVector<T> {
     }
 }
 
+
 pub trait VectorLike {
     type Item;
     fn insert(&mut self, i: u64, val: Self::Item);
@@ -334,6 +335,29 @@ macro_rules! make_matrix_like {
                 }
             }
         }
+
+        impl PartialEq for SparseMatrix<$typ>
+        {
+
+            // naive eq
+            fn eq(&self, other:&Self) -> bool {
+                let (m1, n1) = self.shape();
+                let (m2, n2) = other.shape();
+                if m1 == m2 && n1 == n2 {
+                    for i in 0..m1 {
+                        for j in 0..n2 {
+                            if self.get(i, j) != other.get(i, j){
+                                return false
+                            }
+                        }
+                    }
+                    return true
+                } else {
+                    return false
+                }
+            }
+
+        }
     };
 }
 
@@ -365,6 +389,27 @@ macro_rules! make_vector_like {
             fn nvals(&self) -> u64 {
                 self.nvals()
             }
+        }
+
+        impl PartialEq for SparseVector<$typ>
+        {
+
+            // naive eq
+            fn eq(&self, other:&Self) -> bool {
+                let size1 = self.size();
+                let size2 = other.size();
+                if size1 == size2 {
+                    for i in 0..size1 {
+                        if self.get(i) != other.get(i){
+                            return false
+                        }
+                    }
+                    return true
+                } else {
+                    return false
+                }
+            }
+
         }
     };
 }
@@ -650,5 +695,104 @@ mod tests {
         n.insert(1, 1, true);
         assert_eq!(n.get(1, 1), Some(true));
         assert_eq!(m.get(1, 1), None); // extract does a copy, it is not a view
+    }
+
+    #[test]
+    fn partial_eq_test_equality() {
+        let mut a = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        a.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
+        );
+
+        let mut b = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        b.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
+        );
+
+        assert_eq!(a, b)
+    }
+
+    #[test]
+    fn partial_eq_test_in_equality() {
+        let mut a = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        a.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 1, 4, 5, 1, 2, 3],
+        );
+
+        let mut b = SparseMatrix::<bool>::empty((7, 7));
+
+        let edges_n: usize = 10;
+        b.load(
+            &vec![true; edges_n],
+            &[0, 0, 1, 1, 2, 3, 4, 5, 6, 6],
+            &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
+        );
+
+        assert_ne!(a, b)
+    }
+
+    #[test]
+    fn partial_eq_test_in_equality_empty_on_shape() {
+
+        let a = SparseMatrix::<bool>::empty((7, 7));
+        let b = SparseMatrix::<bool>::empty((7, 7));
+        let c = SparseMatrix::<bool>::empty((2, 5));
+
+        assert_eq!(a, b);
+        assert_ne!(b, c)
+    }
+
+    #[test]
+    fn partial_eq_vector_empty_equality() {
+        let v1 = SparseVector::<bool>::empty(5);
+        let v2 = SparseVector::<bool>::empty(5);
+
+        assert_eq!(v2, v1);
+    }
+
+    #[test]
+    fn partial_eq_vector_empty_in_equality() {
+        let v1 = SparseVector::<bool>::empty(4);
+        let v2 = SparseVector::<bool>::empty(5);
+
+        assert_ne!(v2, v1);
+    }
+
+    #[test]
+    fn partial_eq_vector_equality() {
+        let mut v1 = SparseVector::<bool>::empty(5);
+        let mut v2 = SparseVector::<bool>::empty(5);
+
+        v1.insert(3, true);
+        v1.insert(0, true);
+        v2.insert(3, true);
+        v2.insert(0, true);
+
+        assert_eq!(v2, v1);
+    }
+
+    #[test]
+    fn partial_eq_vector_in_equality() {
+        let mut v1 = SparseVector::<bool>::empty(5);
+        let mut v2 = SparseVector::<bool>::empty(5);
+
+        v1.insert(3, true);
+        v1.insert(0, true);
+        v2.insert(3, true);
+        v2.insert(1, true);
+
+        assert_ne!(v2, v1);
     }
 }
