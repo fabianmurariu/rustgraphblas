@@ -1,6 +1,6 @@
 [package]
 name = "rustgraphblas"
-version = "0.10.0-alpha"
+version = "0.11.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
