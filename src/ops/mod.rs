@@ -1,7 +1,9 @@
 pub mod monoid;
 pub mod binops;
-pub mod ffi;
+pub(crate) mod ffi;
 pub mod types;
 pub mod vector_algebra;
 pub mod matrix_algebra;
 pub mod elem_wise;
+pub mod reduce;
+pub mod index;

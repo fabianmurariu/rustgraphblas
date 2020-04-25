@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-
+#![allow(dead_code)]
 use std::ffi::CStr;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -39,3 +39,31 @@ where
 pub const GxB_RANGE:i64     = std::i64::MAX;
 pub const GxB_STRIDE:i64    = std::i64::MAX-1;
 pub const GxB_BACKWARDS:i64 = std::i64::MAX-2;
+
+
+#[macro_export]
+macro_rules! trait_gen_fn1{
+    ( $grb_name:ident; $grb_sparse_tpe:ident; $rust_maker:ident; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                $rust_maker!(
+                    $rust_tpe,
+                    [<$grb_sparse_tpe _ $grb_name _ $grb_tpe>]
+                );
+                )*
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! trait_gen_fn0{
+    ( $rust_maker:ident; $( $rust_tpe:ty ),* ) => {
+            $(
+                $rust_maker!(
+                    $rust_tpe
+                );
+                )*
+    }
+}
+
+// pub const first_op: GrB_BinaryOp = GrB_FIRST_BOOL;

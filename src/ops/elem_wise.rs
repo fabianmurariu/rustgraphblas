@@ -29,7 +29,7 @@ pub trait ElemWiseVector<X> {
         desc: &Descriptor,
     ) -> SparseVector<Z>;
 
-    fn add<Y, Z: TypeEncoder>(
+    fn union<Y, Z: TypeEncoder>(
         &self,
         b: &SparseVector<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -44,7 +44,7 @@ pub trait ElemWiseVector<X> {
         )
     }
 
-    fn mul<Y, Z: TypeEncoder>(
+    fn intersect<Y, Z: TypeEncoder>(
         &self,
         b: &SparseVector<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -59,7 +59,7 @@ pub trait ElemWiseVector<X> {
         )
     }
 
-    fn add_mut<Y, Z: TypeEncoder>(
+    fn union_mut<Y, Z: TypeEncoder>(
         &mut self,
         b: &SparseVector<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -74,7 +74,7 @@ pub trait ElemWiseVector<X> {
         )
     }
 
-    fn mul_mut<Y, Z: TypeEncoder>(
+    fn intersect_mut<Y, Z: TypeEncoder>(
         &mut self,
         b: &SparseVector<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -102,7 +102,7 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
     ) -> &SparseVector<Z> // C
     {
         let mask = mask
-            .map(|x| x.vec)
+            .map(|x| x.inner)
             .unwrap_or(ptr::null_mut::<GB_Vector_opaque>());
         let acc = accum
             .map(|x| x.op)
@@ -112,20 +112,20 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
             Items::Union => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseAdd_Vector_Semiring(
-                        self.vec, mask, acc, semi.s, self.vec, B.vec, desc.desc,
+                        self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseAdd_Vector_BinaryOp(
-                        self.vec, mask, acc, op.op, self.vec, B.vec, desc.desc,
+                        self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseMult_Vector_Semiring(
-                        self.vec, mask, acc, semi.s, self.vec, B.vec, desc.desc,
+                        self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseMult_Vector_BinaryOp(
-                        self.vec, mask, acc, op.op, self.vec, B.vec, desc.desc,
+                        self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
@@ -146,7 +146,7 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
         let s = self.size();
 
         let mask = mask
-            .map(|x| x.vec)
+            .map(|x| x.inner)
             .unwrap_or(ptr::null_mut::<GB_Vector_opaque>());
         let acc = accum
             .map(|x| x.op)
@@ -157,20 +157,20 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
             Items::Union => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseAdd_Vector_Semiring(
-                        C.vec, mask, acc, semi.s, self.vec, B.vec, desc.desc,
+                        C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseAdd_Vector_BinaryOp(
-                        C.vec, mask, acc, op.op, self.vec, B.vec, desc.desc,
+                        C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseMult_Vector_Semiring(
-                        C.vec, mask, acc, semi.s, self.vec, B.vec, desc.desc,
+                        C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseMult_Vector_BinaryOp(
-                        C.vec, mask, acc, op.op, self.vec, B.vec, desc.desc,
+                        C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
@@ -200,7 +200,7 @@ pub trait ElemWiseMatrix<X> {
         desc: &Descriptor,
     ) -> SparseMatrix<Z>;
 
-    fn add<Y, Z: TypeEncoder>(
+    fn union<Y, Z: TypeEncoder>(
         &self,
         b: &SparseMatrix<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -215,7 +215,7 @@ pub trait ElemWiseMatrix<X> {
         )
     }
 
-    fn mul<Y, Z: TypeEncoder>(
+    fn intersect<Y, Z: TypeEncoder>(
         &self,
         b: &SparseMatrix<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -230,7 +230,7 @@ pub trait ElemWiseMatrix<X> {
         )
     }
 
-    fn add_mut<Y, Z: TypeEncoder>(
+    fn union_mut<Y, Z: TypeEncoder>(
         &mut self,
         b: &SparseMatrix<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -245,7 +245,7 @@ pub trait ElemWiseMatrix<X> {
         )
     }
 
-    fn mul_mut<Y, Z: TypeEncoder>(
+    fn intersect_mut<Y, Z: TypeEncoder>(
         &mut self,
         b: &SparseMatrix<Y>,
         op: &BinaryOp<X, Y, Z>,
@@ -273,7 +273,7 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
     ) -> &SparseMatrix<Z> // C
     {
         let mask = mask
-            .map(|x| x.mat)
+            .map(|x| x.inner)
             .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
         let acc = accum
             .map(|x| x.op)
@@ -283,20 +283,20 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
             Items::Union => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseAdd_Matrix_Semiring(
-                        self.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc,
+                        self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseAdd_Matrix_BinaryOp(
-                        self.mat, mask, acc, op.op, self.mat, B.mat, desc.desc,
+                        self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseMult_Matrix_Semiring(
-                        self.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc,
+                        self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseMult_Matrix_BinaryOp(
-                        self.mat, mask, acc, op.op, self.mat, B.mat, desc.desc,
+                        self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
@@ -317,7 +317,7 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
         let (m, n) = self.shape();
 
         let mask = mask
-            .map(|x| x.mat)
+            .map(|x| x.inner)
             .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
         let acc = accum
             .map(|x| x.op)
@@ -328,20 +328,20 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
             Items::Union => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseAdd_Matrix_Semiring(
-                        C.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc,
+                        C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseAdd_Matrix_BinaryOp(
-                        C.mat, mask, acc, op.op, self.mat, B.mat, desc.desc,
+                        C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
                     Left(semi) => GrB_eWiseMult_Matrix_Semiring(
-                        C.mat, mask, acc, semi.s, self.mat, B.mat, desc.desc,
+                        C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
                     Right(op) => GrB_eWiseMult_Matrix_BinaryOp(
-                        C.mat, mask, acc, op.op, self.mat, B.mat, desc.desc,
+                        C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
@@ -350,18 +350,20 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
     }
 }
 
+
+#[cfg(test)]
 mod tests {
 
     use super::*;
-
+   
     #[test]
     fn element_wise_mult_A_or_B() {
         let mut a = SparseMatrix::<bool>::empty((2, 2));
-        a.insert(0, 0, true);
-        a.insert(1, 1, true);
+        a.insert((0, 0), true);
+        a.insert((1, 1), true);
 
         let mut b = SparseMatrix::<bool>::empty((2, 2));
-        b.insert(1, 1, true);
+        b.insert((1, 1), true);
 
         let or = BinaryOp::<bool, bool, bool>::lor();
 
@@ -375,19 +377,19 @@ mod tests {
             &Descriptor::default(),
         );
 
-        assert_eq!(c.get(0, 0), None);
-        assert_eq!(c.get(1, 1), Some(true));
-        assert_eq!(c.get(0, 1), None);
-        assert_eq!(c.get(1, 0), None);
+        assert_eq!(c.get((0, 0)), None);
+        assert_eq!(c.get((1, 1)), Some(true));
+        assert_eq!(c.get((0, 1)), None);
+        assert_eq!(c.get((1, 0)), None);
     }
 
     #[test]
     fn element_wise_add_A_or_B() {
         let mut a = SparseMatrix::<bool>::empty((2, 2));
-        a.insert(0, 0, true);
+        a.insert((0, 0), true);
 
         let mut b = SparseMatrix::<bool>::empty((2, 2));
-        b.insert(1, 1, true);
+        b.insert((1, 1), true);
 
         let or = BinaryOp::<bool, bool, bool>::lor();
 
@@ -400,40 +402,40 @@ mod tests {
             &Descriptor::default(),
         );
 
-        assert_eq!(c.get(0, 0), Some(true));
-        assert_eq!(c.get(1, 1), Some(true));
-        assert_eq!(c.get(0, 1), None);
-        assert_eq!(c.get(1, 0), None);
+        assert_eq!(c.get((0, 0)), Some(true));
+        assert_eq!(c.get((1, 1)), Some(true));
+        assert_eq!(c.get((0, 1)), None);
+        assert_eq!(c.get((1, 0)), None);
     }
 
     #[test]
     fn element_wise_mut_eq_union_A_eq_B() {
         let mut a = SparseMatrix::<i32>::empty((3, 3));
-        a.insert(0, 0, 3);
-        a.insert(1, 1, 4);
-        a.insert(2, 2, 5);
+        a.insert((0, 0), 3);
+        a.insert((1, 1), 4);
+        a.insert((2, 2), 5);
 
         let mut b = SparseMatrix::<i32>::empty((3, 3));
-        b.insert(0, 0, 3);
-        b.insert(1, 1, 4);
-        b.insert(2, 2, -5);
+        b.insert((0, 0), 3);
+        b.insert((1, 1), 4);
+        b.insert((2, 2), -5);
 
-        let bool_a = a.add_mut(&b, &BinaryOp::<i32, i32, bool>::eq());
+        let bool_a = a.union_mut(&b, &BinaryOp::<i32, i32, bool>::eq());
 
-        assert_eq!(bool_a.get(0, 0), Some(true));
-        assert_eq!(bool_a.get(1, 1), Some(true));
-        assert_eq!(bool_a.get(2, 2), Some(false));
+        assert_eq!(bool_a.get((0, 0)), Some(true));
+        assert_eq!(bool_a.get((1, 1)), Some(true));
+        assert_eq!(bool_a.get((2, 2)), Some(false));
     }
 
     #[test]
     fn element_wise_add_A_and_B() {
         let mut a = SparseMatrix::<bool>::empty((2, 2));
-        a.insert(0, 0, true);
-        a.insert(0, 1, true);
+        a.insert((0, 0), true);
+        a.insert((0, 1), true);
 
         let mut b = SparseMatrix::<bool>::empty((2, 2));
-        b.insert(1, 1, true);
-        a.insert(0, 1, true);
+        b.insert((1, 1), true);
+        a.insert((0, 1), true);
 
         let and = BinaryOp::<bool, bool, bool>::land();
 
@@ -447,10 +449,10 @@ mod tests {
             &Descriptor::default(),
         );
 
-        assert_eq!(c.get(0, 0), Some(true)); // from a
-        assert_eq!(c.get(1, 1), Some(true)); // from b
-        assert_eq!(c.get(0, 1), Some(true)); // from a and b
-        assert_eq!(c.get(1, 0), None); // not present
+        assert_eq!(c.get((0, 0)), Some(true)); // from a
+        assert_eq!(c.get((1, 1)), Some(true)); // from b
+        assert_eq!(c.get((0, 1)), Some(true)); // from a and b
+        assert_eq!(c.get((1, 0)), None); // not present
     }
 
     #[test]
@@ -461,7 +463,7 @@ mod tests {
         let mut b = SparseVector::<i32>::empty(10);
         b.load(&[8, -14, 36, -58], &[0, 2, 4, 6]);
 
-        let c = a.add_mut(
+        let c = a.union_mut(
             &b,
             &BinaryOp::<i32, i32, i32>::plus(),
         );
@@ -480,7 +482,7 @@ mod tests {
         let mut b = SparseVector::<i32>::empty(10);
         b.load(&[1, 2, -3, -4], &[0, 2, 4, 8]);
 
-        let c = a.mul_mut(
+        let c = a.intersect_mut(
             &b,
             &BinaryOp::<i32, i32, bool>::eq(),
         );

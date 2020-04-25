@@ -90,6 +90,7 @@ impl<'a, A, B, C> Drop for Semiring<'a, A, B, C> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
