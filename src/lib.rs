@@ -406,9 +406,13 @@ mod tests {
         let mut v = SparseVector::<bool>::empty(2);
         v.insert(0, true);
 
+        let mut v2 = SparseVector::<bool>::empty(2);
+        v2.insert(0, false);
+
         let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), false);
 
-        assert_eq!(*v.reduce_all(&mut true, &m, None, None), false);
+        assert_eq!(*v.reduce_all(&mut true, &m, None, None), true);
+        assert_eq!(*v2.reduce_all(&mut true, &m, None, None), false);
     }
 
     #[test]

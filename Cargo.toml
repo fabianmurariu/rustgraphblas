@@ -1,11 +1,11 @@
 [package]
 name = "rustgraphblas"
-version = "0.11.0-alpha"
+version = "0.12.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
 keywords = ["graphblas", "blas", "graph", "algorithms"]
-homepage = "https://github.com/fabianmurariu/libgraphblas"
+homepage = "https://github.com/fabianmurariu/rustgraphblas"
 description = "Wrapper for GraphBLAS.h exposing SparseMatrix and SparseVector"
 exclude = [".gitignore"]
 

@@ -9,6 +9,13 @@ as a set of linear algebra operations.
 
 More about GraphBLAS [here](http://graphblas.org/index.php?title=Graph_BLAS_Forum) 
 
+Requirements: build and install GraphBLAS dependency, for details see[here](https://github.com/DrTimothyAldenDavis/GraphBLAS/blob/stable/README.md "GraphBLAS readme") 
+
+```bash
+cd deps/GraphBLAS
+make clean install
+```
+
 Example of BFS from [bfs5m.c](https://github.com/fabianmurariu/SuiteSparse/blob/master/GraphBLAS/Demo/Source/bfs5m.c#L33)
 ```rust
 /**
