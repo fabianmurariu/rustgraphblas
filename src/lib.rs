@@ -33,6 +33,9 @@ extern crate lazy_static;
 lazy_static! {
     static ref GRB: u32 = unsafe { GrB_init(GrB_Mode_GrB_NONBLOCKING) };
 }
+// Wrapper for custom types to allow calling different traits for UDFs
+#[derive(Debug, PartialEq)]
+struct Id<T>(T);
 
 pub struct SparseMatrix<T> {
     inner: GrB_Matrix,
@@ -82,7 +85,7 @@ impl<T: TypeEncoder> SparseMatrix<T> {
         let (rows, cols) = size;
 
         let mat = grb_call(|M: &mut MaybeUninit<GrB_Matrix>| unsafe {
-            GrB_Matrix_new(M.as_mut_ptr(), *T::blas_type().tpe, rows, cols)
+            GrB_Matrix_new(M.as_mut_ptr(), T::blas_type().tpe, rows, cols)
         });
 
         if let Some(fmt) = format {
@@ -223,7 +226,7 @@ impl<T: TypeEncoder> SparseVector<T> {
         let _ = *GRB;
 
         let vec = grb_call(|V: &mut MaybeUninit<GrB_Vector>| unsafe {
-            GrB_Vector_new(V.as_mut_ptr(), *T::blas_type().tpe, size)
+            GrB_Vector_new(V.as_mut_ptr(), T::blas_type().tpe, size)
         });
         SparseVector {
             inner: vec,
@@ -263,7 +266,7 @@ impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.inner as *mut GrB_Matrix;
         self.nvals();
-        grb_run({ || unsafe { GrB_Matrix_free(m_pointer) } });
+        grb_run( || unsafe { GrB_Matrix_free(m_pointer) })
     }
 }
 

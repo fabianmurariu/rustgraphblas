@@ -1,3 +1,5 @@
+use std::ffi::c_void;
+
 use crate::*;
 
 pub trait Get<Idx> {
@@ -15,6 +17,35 @@ pub trait Extract {
     type Indices;
     fn extract_tuples(&self) -> (Vec<Self::Item>, Self::Indices);
 }
+
+impl <T> Insert<(u64, u64)> for SparseMatrix<Id<T>> {
+            type Item = Id<T>;
+
+            fn insert(&mut self, idx: (u64, u64), mut val: Self::Item) {
+                let (row, col) = idx;
+                grb_run(|| unsafe { 
+                    let x = &mut val.0;
+                    GrB_Matrix_setElement_UDT(
+                    self.inner, x as *mut _ as *mut c_void, row, col) })
+            }
+        }
+
+impl <T> Get<(u64, u64)> for SparseMatrix<Id<T>> {
+            type Item = Id<T>;
+
+            fn get(&self, idx: (u64, u64)) -> Option<Self::Item> {
+                let (i, j) = idx;
+                let mut P = MaybeUninit::<Id<T>>::uninit();
+                unsafe {
+                    match GrB_Matrix_extractElement_UDT(P.as_mut_ptr() as *mut _ as *mut c_void, self.inner, i, j) {
+                        0 => Some(P.assume_init()),
+                        1 => None,
+                        e => panic!("Failed to get element at ({}, {}) GrB_error: {}", i, j, e),
+                    }
+                }
+            }
+        }
+
 
 macro_rules! matrix_extract_impls {
     ( $typ:ty, $extract_elem_func:ident ) => {

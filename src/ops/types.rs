@@ -2,15 +2,26 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-
-use crate::ops::ffi::*;
+use crate::{ops::ffi::*, Id};
+use std::mem::size_of;
+use std::mem::MaybeUninit;
 
 pub struct SparseType {
-    pub(crate) tpe: *mut GrB_Type,
+    pub(crate) tpe: GrB_Type,
 }
 
 pub trait TypeEncoder {
     fn blas_type() -> SparseType;
+}
+
+// generic implementation of custom
+impl<T> TypeEncoder for Id<T> {
+    fn blas_type() -> SparseType {
+        let grb_type: GrB_Type = grb_call(|TPE: &mut MaybeUninit<GrB_Type>| unsafe {
+            GrB_Type_new(TPE.as_mut_ptr(), size_of::<Id<T>>() as u64)
+        });
+        SparseType { tpe: grb_type }
+    }
 }
 
 // manually define what types can act as a boolean mask (basically all basic types)
@@ -23,8 +34,7 @@ macro_rules! make_base_sparse_type {
     ( $typ:ty, $grb_typ:ident ) => {
         impl TypeEncoder for $typ {
             fn blas_type() -> SparseType {
-                let tpe = unsafe { &mut $grb_typ as *mut GrB_Type };
-                SparseType { tpe: tpe }
+                unsafe { SparseType { tpe: $grb_typ } }
             }
         }
     };
@@ -44,9 +54,9 @@ make_base_sparse_type!(f64, GrB_FP64);
 
 pub mod desc {
     extern crate num_traits;
+    use crate::ops::ffi::*;
     use num_traits::{FromPrimitive, ToPrimitive};
     use std::mem::MaybeUninit;
-    use crate::ops::ffi::*;
 
     pub struct Descriptor {
         pub(crate) desc: GrB_Descriptor,
@@ -72,7 +82,6 @@ pub mod desc {
         Dot = GrB_Desc_Value_GxB_AxB_DOT as isize,
     }
 
-
     impl Default for Descriptor {
         fn default() -> Self {
             Self::new()
@@ -81,27 +90,25 @@ pub mod desc {
 
     impl Descriptor {
         pub fn new() -> Descriptor {
-            let desc = grb_call(|D: &mut MaybeUninit::<GrB_Descriptor>| {
-                unsafe {GrB_Descriptor_new(D.as_mut_ptr()) }
+            let desc = grb_call(|D: &mut MaybeUninit<GrB_Descriptor>| unsafe {
+                GrB_Descriptor_new(D.as_mut_ptr())
             });
-            Descriptor{desc}
+            Descriptor { desc }
         }
 
         pub fn set(&mut self, key: Field, value: Value) -> &mut Descriptor {
-            grb_run(|| {unsafe {
+            grb_run(|| unsafe {
                 GrB_Descriptor_set(self.desc, key.to_u32().unwrap(), value.to_u32().unwrap())
-            }
             });
             self
         }
 
-        pub fn get(&self, key:Field) -> Option<Value> {
-            let value = grb_call(|X: &mut MaybeUninit::<GrB_Desc_Value>|{
-                unsafe {GxB_Descriptor_get( X.as_mut_ptr(), self.desc, key.to_u32().unwrap())}
+        pub fn get(&self, key: Field) -> Option<Value> {
+            let value = grb_call(|X: &mut MaybeUninit<GrB_Desc_Value>| unsafe {
+                GxB_Descriptor_get(X.as_mut_ptr(), self.desc, key.to_u32().unwrap())
             });
             Value::from_u32(value)
         }
-
     }
 
     impl Drop for Descriptor {
@@ -111,10 +118,8 @@ pub mod desc {
                 GrB_Descriptor_free(m_pointer);
             }
         }
-
     }
 
-    
     #[test]
     fn can_create_descriptor_set_field_value() {
         let mut desc = Descriptor::new();

@@ -65,5 +65,3 @@ macro_rules! trait_gen_fn0{
                 )*
     }
 }
-
-// pub const first_op: GrB_BinaryOp = GrB_FIRST_BOOL;

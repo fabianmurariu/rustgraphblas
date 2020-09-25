@@ -165,7 +165,7 @@ macro_rules! make_vector_assign {
 grb_trait_constructor!(make_vector_assign; GrB_Vector_assign_;
     bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
     BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
-
+    
 #[test]
 fn create_sparse_vector_assign_subvector() {
     let mut v = SparseVector::<u64>::empty(10);

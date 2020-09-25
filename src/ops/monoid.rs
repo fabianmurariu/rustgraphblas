@@ -1,14 +1,14 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-use crate::ops::binops::*;
+use crate::{ops::binops::*, Id};
 use crate::ops::ffi::*;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ffi::c_void};
 use std::mem::MaybeUninit;
 
 pub struct SparseMonoid<T> {
     pub(crate) m: GrB_Monoid,
-    _t: PhantomData<*const T>,
+    _t: PhantomData<T>,
 }
 
 impl<T: MonoidBuilder<T>> SparseMonoid<T> {
@@ -20,6 +20,17 @@ impl<T: MonoidBuilder<T>> SparseMonoid<T> {
 pub trait MonoidBuilder<T> {
     fn new_monoid(binOp: BinaryOp<T, T, T>, default: T) -> SparseMonoid<T>;
 }
+
+impl<T> MonoidBuilder<Id<T>> for Id<T> {
+    fn new_monoid(binOp: BinaryOp<Id<T>, Id<T>, Id<T>>, mut default: Id<T>) -> SparseMonoid<Id<T>> {
+        let m = grb_call(|M: &mut MaybeUninit<GrB_Monoid>| unsafe {
+            let x = &mut default.0;
+             GrB_Monoid_new_UDT(M.as_mut_ptr(), binOp.op, x as *mut _ as *mut c_void)
+        });
+
+        SparseMonoid{m, _t: PhantomData }
+    }
+} 
 
 impl<T> Drop for SparseMonoid<T> {
     fn drop(&mut self) {
