@@ -1,3 +1,4 @@
 [submodule "deps/GraphBLAS"]
 	path = deps/GraphBLAS
 	url = https://github.com/DrTimothyAldenDavis/GraphBLAS
+	branch = master
