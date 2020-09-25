@@ -1,5 +1,6 @@
 pub mod monoid;
 pub mod binops;
+pub mod unaryops;
 pub(crate) mod ffi;
 pub mod types;
 pub mod vector_algebra;

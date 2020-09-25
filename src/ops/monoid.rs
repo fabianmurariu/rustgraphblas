@@ -24,13 +24,13 @@ pub trait MonoidBuilder<T> {
 impl<T> MonoidBuilder<Id<T>> for Id<T> {
     fn new_monoid(binOp: BinaryOp<Id<T>, Id<T>, Id<T>>, mut default: Id<T>) -> SparseMonoid<Id<T>> {
         let m = grb_call(|M: &mut MaybeUninit<GrB_Monoid>| unsafe {
-            let x = &mut default.0;
+            let x = &mut default;
              GrB_Monoid_new_UDT(M.as_mut_ptr(), binOp.op, x as *mut _ as *mut c_void)
         });
 
         SparseMonoid{m, _t: PhantomData }
     }
-} 
+}
 
 impl<T> Drop for SparseMonoid<T> {
     fn drop(&mut self) {

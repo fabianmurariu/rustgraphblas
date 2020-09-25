@@ -59,6 +59,36 @@ where
     }
 }
 
+
+impl<A> BinaryOp<A, A, A>
+where
+    A: BinOp<X = A, Y = A>,
+{
+
+    pub fn combine() -> Self
+    where
+        A: TypeEncoder
+    {
+        let _ = *GRB;
+        let grb_op: GrB_BinaryOp = grb_call(|OP: &mut MaybeUninit<GrB_BinaryOp>| unsafe {
+            let tpe = A::blas_type().tpe;
+            GrB_BinaryOp_new(
+                OP.as_mut_ptr(),
+                Some(Self::unsafe_call),
+                tpe,
+                tpe,
+                tpe
+            )
+        });
+        BinaryOp {
+            op: grb_op,
+            _a: PhantomData,
+            _b: PhantomData,
+            _c: PhantomData,
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! make_binary_op {
     ( $typ1:ty, $typ2:ty, $grb_op:ident, $op_name: ident) => {
@@ -108,7 +138,7 @@ binary_ops_gen!(
     BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
 macro_rules! binary_ops_gen_bool{
-    ( $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+    ( GrB; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
         paste::item! {
             $(
                 make_binary_op!($rust_tpe, bool, [<GrB_EQ_ $grb_tpe>], eq);
@@ -119,12 +149,22 @@ macro_rules! binary_ops_gen_bool{
                 make_binary_op!($rust_tpe, bool, [<GrB_LE_ $grb_tpe>], lte);
                 )*
         }
+    };
+    ( GxB; $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                make_binary_op!($rust_tpe, bool, [<GxB_EQ_ $grb_tpe>], eq);
+                make_binary_op!($rust_tpe, bool, [<GxB_NE_ $grb_tpe>], neq);
+                )*
+        }
     }
 }
 
-binary_ops_gen_bool!(
+binary_ops_gen_bool!(GrB;
     bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
     BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
+
+binary_ops_gen_bool!(GxB; Complex<f32>, Complex<f64>; FC32, FC64);
 
 #[cfg(test)]
 mod tests {
@@ -152,11 +192,16 @@ mod tests {
     #[test]
     fn createBinaryOpFromRustType() {
         let mut mat = SparseMatrix::<Id<Complex>>::empty((12, 12));
-        let op = BinaryOp::<Id<Complex>, Id<Complex>, Id<Complex>>::new();
+        let op = BinaryOp::<Id<Complex>, Id<Complex>, Id<Complex>>::combine();
+        let _m = SparseMonoid::<Id<Complex>>::new(op, Id(Complex{r: 0.0, i: 0.0}));
+
+
         mat.insert((0, 0), Id(Complex { i: 0.4, r: 0.9 }));
         let expected = Id(Complex { i: 0.4, r: 0.9 });
         if let Some(actual) = mat.get((0, 0)) {
-            assert_eq!(actual, expected, "aaa");
+            assert_eq!(actual, expected)
+        } else {
+            panic!("Unable to get custom type from GrB_Matrix")
         }
     }
 }

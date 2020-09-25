@@ -8,6 +8,8 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::mem::MaybeUninit;
 
+pub type Complex<T> = __BindgenComplex<T>;
+
 fn handle_grb_response(status:u32) {
     match status {
         0 => (),
