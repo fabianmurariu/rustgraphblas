@@ -44,13 +44,22 @@ grb_trait_constructor!(make_vector_builder; GrB_Vector_build_;
     bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
     BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
-pub trait MatrixBuilder<Z> {
+pub trait MatrixBuilder<Z:TypeEncoder> {
     fn load(&mut self, zs: &[Z], is: &[u64], js: &[u64]) -> &SparseMatrix<Z>;
+    fn new(size: (u64, u64), zs: &[Z], is: &[u64], js: &[u64]) -> SparseMatrix<Z>;
+
 }
 
 macro_rules! make_matrix_builder {
     ( $rust_typ:ty, $grb_assign_fn:ident ) => {
         impl MatrixBuilder<$rust_typ> for SparseMatrix<$rust_typ> {
+
+            fn new(size: (u64, u64), zs: &[$rust_typ], is: &[u64], js: &[u64]) -> SparseMatrix<$rust_typ> {
+                let mut mat = SparseMatrix::<$rust_typ>::empty(size);
+                Self::load(&mut mat, zs, is, js);
+                mat
+            }
+
             fn load(
                 &mut self,
                 zs: &[$rust_typ],

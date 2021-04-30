@@ -1,6 +1,6 @@
 use crate::*;
 
-use std::ptr;
+use std::{convert::TryInto, ptr};
 
 pub fn empty_matrix_mask<B>() -> Option<&'static SparseMatrix<B>> {
     None::<&SparseMatrix<B>>
@@ -45,11 +45,57 @@ impl<X: TypeEncoder> MatrixXMatrix<X> for SparseMatrix<X> {
     }
 }
 
+trait MatConcat<T> {
+    /**
+    concat([a0, a1, b0, b1], 2, 2) results in a matrix like
+    [
+        [a0, a1]
+        [b0, b1]
+    ]
+    the matrices are in a row major format 
+    n = number of columns
+    m = number of rows 
+     */
+    fn concat(mats:&[&SparseMatrix<T>], n:usize, m:usize) -> SparseMatrix<T>;    
+}
+
+impl<T: TypeEncoder> MatConcat<T> for SparseMatrix<T> {
+    fn concat(mats:&[&SparseMatrix<T>], n:usize, m:usize) -> SparseMatrix<T> {
+       let rows = mats[0..n].iter().map(|mat|mat.rows()).sum();
+       let cols = mats.iter().step_by(m).map(|mat| mat.cols()).sum();
+       let c:SparseMatrix<T> = SparseMatrix::empty((rows, cols));
+
+       unsafe {
+        let tiles:Vec<GrB_Matrix> = mats.iter().map(|m|m.inner).collect();
+
+        GxB_Matrix_concat(c.inner, tiles.as_ptr(), m.try_into().unwrap(), n.try_into().unwrap(), Descriptor::default().desc);
+       }
+       c
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashSet;
-   
+  
+    #[test]
+    fn concat_2_matrices() {
+        let a0: SparseMatrix<bool> = SparseMatrix::new((2, 2), &[true], &[1], &[1]);
+        let a1: SparseMatrix<bool> = SparseMatrix::new((2, 2), &[true], &[1], &[0]);
+        let b0: SparseMatrix<bool> = SparseMatrix::new((2, 2), &[true], &[0], &[1]);
+        let b1: SparseMatrix<bool> = SparseMatrix::new((2, 2), &[true], &[0], &[0]);
+
+        let mut actual: SparseMatrix<bool> = SparseMatrix::concat(&[&a0, &a1, &b0, &b1], 2, 2);
+
+        let mut expected: SparseMatrix<bool> = SparseMatrix::new((4, 4), &[true, true, true, true], &[1, 1, 2, 2], &[1, 2, 1, 2]);
+
+        actual.wait();
+        expected.wait();
+
+        assert_eq!(actual.extract_tuples(), expected.extract_tuples());
+    }
+
     #[test]
     fn multiply_2_matrices_with_mxm_for_bfs_no_transpose() {
         let mut A = SparseMatrix::<bool>::empty((7, 7));

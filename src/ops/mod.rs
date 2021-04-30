@@ -8,3 +8,4 @@ pub mod matrix_algebra;
 pub mod elem_wise;
 pub mod reduce;
 pub mod index;
+pub mod config;

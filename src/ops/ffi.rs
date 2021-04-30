@@ -10,15 +10,19 @@ use std::mem::MaybeUninit;
 
 pub type Complex<T> = __BindgenComplex<T>;
 
+pub type fc32 = Complex<f32>;
+pub type fc64 = Complex<f64>;
+
 fn handle_grb_response(status:u32) {
     match status {
         0 => (),
         err => {
-            let grb_err_text = unsafe {
-                CStr::from_ptr(GrB_error()).to_str()
-            };
+            // TODO: recover the error in a generic way
+            // let grb_err_text = unsafe {
+            //     CStr::from_ptr(GrB_error()).to_str()
+            // };
 
-            panic!("Error: {}, Failed to call GRB function {:?} ", err, grb_err_text);
+            panic!("Error: {}, Failed to call GRB function", err);
         }
     }
 }

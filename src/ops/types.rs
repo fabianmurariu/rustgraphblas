@@ -76,10 +76,12 @@ pub mod desc {
         Default = GrB_Desc_Value_GxB_DEFAULT as isize,
         Replace = GrB_Desc_Value_GrB_REPLACE as isize,
         SCMP = GrB_Desc_Value_GrB_SCMP as isize,
+        Structure = GrB_Desc_Value_GrB_STRUCTURE as isize,
         Transpose = GrB_Desc_Value_GrB_TRAN as isize,
         Gustavson = GrB_Desc_Value_GxB_AxB_GUSTAVSON as isize,
-        Heap = GrB_Desc_Value_GxB_AxB_HEAP as isize,
+        Hash = GrB_Desc_Value_GxB_AxB_HASH as isize,
         Dot = GrB_Desc_Value_GxB_AxB_DOT as isize,
+        SAXPY = GrB_Desc_Value_GxB_AxB_SAXPY as isize,
     }
 
     impl Default for Descriptor {

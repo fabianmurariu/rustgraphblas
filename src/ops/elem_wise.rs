@@ -111,20 +111,20 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
         grb_run(|| match items {
             Items::Union => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseAdd_Vector_Semiring(
+                    Left(semi) => GrB_Vector_eWiseAdd_Semiring(
                         self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseAdd_Vector_BinaryOp(
+                    Right(op) => GrB_Vector_eWiseAdd_BinaryOp(
                         self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseMult_Vector_Semiring(
+                    Left(semi) => GrB_Vector_eWiseMult_Semiring(
                         self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseMult_Vector_BinaryOp(
+                    Right(op) => GrB_Vector_eWiseMult_BinaryOp(
                         self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
@@ -156,20 +156,20 @@ impl<X: TypeEncoder> ElemWiseVector<X> for SparseVector<X> {
         grb_run(|| match items {
             Items::Union => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseAdd_Vector_Semiring(
+                    Left(semi) => GrB_Vector_eWiseAdd_Semiring(
                         C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseAdd_Vector_BinaryOp(
+                    Right(op) => GrB_Vector_eWiseAdd_BinaryOp(
                         C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseMult_Vector_Semiring(
+                    Left(semi) => GrB_Vector_eWiseMult_Semiring(
                         C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseMult_Vector_BinaryOp(
+                    Right(op) => GrB_Vector_eWiseMult_BinaryOp(
                         C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
@@ -282,20 +282,20 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
         grb_run(|| match items {
             Items::Union => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseAdd_Matrix_Semiring(
+                    Left(semi) => GrB_Matrix_eWiseAdd_Semiring(
                         self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseAdd_Matrix_BinaryOp(
+                    Right(op) => GrB_Matrix_eWiseAdd_BinaryOp(
                         self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseMult_Matrix_Semiring(
+                    Left(semi) => GrB_Matrix_eWiseMult_Semiring(
                         self.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseMult_Matrix_BinaryOp(
+                    Right(op) => GrB_Matrix_eWiseMult_BinaryOp(
                         self.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
@@ -327,20 +327,20 @@ impl<X: TypeEncoder> ElemWiseMatrix<X> for SparseMatrix<X> {
         grb_run(|| match items {
             Items::Union => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseAdd_Matrix_Semiring(
+                    Left(semi) => GrB_Matrix_eWiseAdd_Semiring(
                         C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseAdd_Matrix_BinaryOp(
+                    Right(op) => GrB_Matrix_eWiseAdd_BinaryOp(
                         C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }
             },
             Items::Intersect => unsafe {
                 match s_ring {
-                    Left(semi) => GrB_eWiseMult_Matrix_Semiring(
+                    Left(semi) => GrB_Matrix_eWiseMult_Semiring(
                         C.inner, mask, acc, semi.s, self.inner, B.inner, desc.desc,
                     ),
-                    Right(op) => GrB_eWiseMult_Matrix_BinaryOp(
+                    Right(op) => GrB_Matrix_eWiseMult_BinaryOp(
                         C.inner, mask, acc, op.op, self.inner, B.inner, desc.desc,
                     ),
                 }

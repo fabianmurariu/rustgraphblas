@@ -19,6 +19,7 @@ pub use crate::ops::vector_algebra::*;
 pub use crate::ops::elem_wise::*;
 pub use crate::ops::index::*;
 pub use crate::ops::reduce::*;
+pub use crate::ops::config::*;
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -79,6 +80,8 @@ pub enum MatrixFormat {
 }
 
 impl<T: TypeEncoder> SparseMatrix<T> {
+
+
     pub fn empty_mat(size: (u64, u64), format: Option<MatrixFormat>) -> SparseMatrix<T> {
         let _ = *GRB;
 
@@ -172,6 +175,20 @@ impl<T: TypeEncoder> SparseMatrix<T> {
         });
         c
     }
+
+    pub fn remove(&mut self, i:u64, j:u64) {
+        grb_run(|| unsafe {GrB_Matrix_removeElement(self.inner, i, j)})
+    }
+
+    pub fn diag(&mut self, diag: &SparseVector<T>, k:i64, desc: Option<Descriptor>) -> &SparseMatrix<T> {
+        let d = desc.unwrap_or(Descriptor::default());
+
+        grb_run(|| unsafe {
+            GxB_Matrix_diag(self.inner, diag.inner, k, d.desc)
+        });
+
+        self
+    }
 }
 
 impl<T> SparseMatrix<T> {
@@ -204,6 +221,10 @@ impl<T> SparseMatrix<T> {
 
     pub fn clear(&mut self) {
         grb_run(|| unsafe { GrB_Matrix_clear(self.inner) })
+    }
+
+    pub fn wait(&mut self) {
+        grb_run(|| unsafe { GrB_Matrix_wait(&mut self.inner)})
     }
 
 }
@@ -247,6 +268,14 @@ impl<T> SparseVector<T> {
     pub fn resize(&mut self, new_size: u64) {
         grb_run(|| unsafe { GxB_Vector_resize(self.inner, new_size) })
     }
+
+    pub fn wait(&mut self) {
+        grb_run(|| unsafe { GrB_Vector_wait(&mut self.inner)})
+    }
+
+    pub fn remove(&mut self, i:u64) {
+        grb_run(|| unsafe {GrB_Vector_removeElement(self.inner, i)})
+    }
 }
 
 impl<T> Clone for SparseVector<T> {
@@ -265,7 +294,7 @@ impl<T> Clone for SparseVector<T> {
 impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.inner as *mut GrB_Matrix;
-        self.nvals();
+        self.wait();
         grb_run( || unsafe { GrB_Matrix_free(m_pointer) })
     }
 }
@@ -273,7 +302,7 @@ impl<T> Drop for SparseMatrix<T> {
 impl<T> Drop for SparseVector<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.inner as *mut GrB_Vector;
-        self.nvals();
+        self.wait();
         grb_run(|| unsafe { GrB_Vector_free(m_pointer) });
     }
 }
