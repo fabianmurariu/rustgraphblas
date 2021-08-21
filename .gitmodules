@@ -2,6 +2,3 @@
 	path = deps/GraphBLAS
 	url = https://github.com/DrTimothyAldenDavis/GraphBLAS
 	branch = master
-[submodule "deps/LAGraph"]
-	path = deps/LAGraph
-	url = https://github.com/GraphBLAS/LAGraph.git
