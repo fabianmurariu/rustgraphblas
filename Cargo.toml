@@ -7,7 +7,7 @@ license = "Apache-2.0"
 keywords = ["graphblas", "blas", "graph", "algorithms"]
 homepage = "https://github.com/fabianmurariu/rustgraphblas"
 description = "Wrapper for GraphBLAS.h exposing SparseMatrix and SparseVector"
-exclude = [".gitignore"]
+exclude = [".gitignore", "deps/*"]
 
 [dependencies]
 paste = "1.0.4"
