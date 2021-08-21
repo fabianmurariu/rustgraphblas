@@ -179,9 +179,9 @@ mod tests {
         i: f64,
     }
 
-    impl BinOp for Id<Complex> {
-        type X = Id<Complex>;
-        type Y = Id<Complex>;
+    impl BinOp for Udf<Complex> {
+        type X = Udf<Complex>;
+        type Y = Udf<Complex>;
 
         fn op(&mut self, x: &Self::X, y: &Self::Y) -> () {
             self.0.r = x.0.r + y.0.r;
@@ -191,13 +191,13 @@ mod tests {
 
     #[test]
     fn createBinaryOpFromRustType() {
-        let mut mat = SparseMatrix::<Id<Complex>>::empty((12, 12));
-        let op = BinaryOp::<Id<Complex>, Id<Complex>, Id<Complex>>::combine();
-        let _m = SparseMonoid::<Id<Complex>>::new(op, Id(Complex{r: 0.0, i: 0.0}));
+        let mut mat = SparseMatrix::<Udf<Complex>>::empty((12, 12));
+        let op = BinaryOp::<Udf<Complex>, Udf<Complex>, Udf<Complex>>::combine();
+        let _m = SparseMonoid::<Udf<Complex>>::new(op, Udf(Complex{r: 0.0, i: 0.0}));
 
 
-        mat.insert((0, 0), Id(Complex { i: 0.4, r: 0.9 }));
-        let expected = Id(Complex { i: 0.4, r: 0.9 });
+        mat.insert((0, 0), Udf(Complex { i: 0.4, r: 0.9 }));
+        let expected = Udf(Complex { i: 0.4, r: 0.9 });
         if let Some(actual) = mat.get((0, 0)) {
             assert_eq!(actual, expected)
         } else {

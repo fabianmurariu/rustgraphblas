@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use crate::{ops::ffi::*, Id};
+use crate::{ops::ffi::*, Udf};
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 
@@ -15,10 +15,10 @@ pub trait TypeEncoder {
 }
 
 // generic implementation of custom
-impl<T> TypeEncoder for Id<T> {
+impl<T> TypeEncoder for Udf<T> {
     fn blas_type() -> SparseType {
         let grb_type: GrB_Type = grb_call(|TPE: &mut MaybeUninit<GrB_Type>| unsafe {
-            GrB_Type_new(TPE.as_mut_ptr(), size_of::<Id<T>>() as u64)
+            GrB_Type_new(TPE.as_mut_ptr(), size_of::<Udf<T>>() as u64)
         });
         SparseType { tpe: grb_type }
     }

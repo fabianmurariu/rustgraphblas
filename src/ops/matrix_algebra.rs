@@ -2,6 +2,8 @@ use crate::*;
 
 use std::{convert::TryInto, ptr};
 
+use super::unaryops::UnaryOp;
+
 pub fn empty_matrix_mask<B>() -> Option<&'static SparseMatrix<B>> {
     None::<&SparseMatrix<B>>
 }

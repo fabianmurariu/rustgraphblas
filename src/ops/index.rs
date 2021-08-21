@@ -18,8 +18,8 @@ pub trait Extract {
     fn extract_tuples(&self) -> (Vec<Self::Item>, Self::Indices);
 }
 
-impl <T> Insert<(u64, u64)> for SparseMatrix<Id<T>> {
-            type Item = Id<T>;
+impl <T> Insert<(u64, u64)> for SparseMatrix<Udf<T>> {
+            type Item = Udf<T>;
 
             fn insert(&mut self, idx: (u64, u64), mut val: Self::Item) {
                 let (row, col) = idx;
@@ -30,12 +30,12 @@ impl <T> Insert<(u64, u64)> for SparseMatrix<Id<T>> {
             }
         }
 
-impl <T> Get<(u64, u64)> for SparseMatrix<Id<T>> {
-            type Item = Id<T>;
+impl <T> Get<(u64, u64)> for SparseMatrix<Udf<T>> {
+            type Item = Udf<T>;
 
             fn get(&self, idx: (u64, u64)) -> Option<Self::Item> {
                 let (i, j) = idx;
-                let mut P = MaybeUninit::<Id<T>>::uninit();
+                let mut P = MaybeUninit::<Udf<T>>::uninit();
                 unsafe {
                     match GrB_Matrix_extractElement_UDT(P.as_mut_ptr() as *mut _ as *mut c_void, self.inner, i, j) {
                         0 => Some(P.assume_init()),

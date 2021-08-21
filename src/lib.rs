@@ -10,23 +10,25 @@ extern crate num_traits;
 pub mod algo;
 pub mod ops;
 pub use crate::ops::binops::*;
+pub use crate::ops::config::*;
+pub use crate::ops::elem_wise::*;
 use crate::ops::ffi::*;
+pub use crate::ops::index::*;
 pub use crate::ops::matrix_algebra::*;
 pub use crate::ops::monoid::*;
+pub use crate::ops::reduce::*;
 pub use crate::ops::types::desc::*;
 pub use crate::ops::types::*;
 pub use crate::ops::vector_algebra::*;
-pub use crate::ops::elem_wise::*;
-pub use crate::ops::index::*;
-pub use crate::ops::reduce::*;
-pub use crate::ops::config::*;
 
+use num_traits::{FromPrimitive, ToPrimitive};
+use ops::unaryops::UnaryOp;
 use std::fmt;
 use std::marker::PhantomData;
+use std::mem;
 use std::mem::MaybeUninit;
-use std::ptr;
 use std::ops::Range;
-use num_traits::{FromPrimitive, ToPrimitive};
+use std::ptr;
 
 #[macro_use]
 extern crate lazy_static;
@@ -36,7 +38,7 @@ lazy_static! {
 }
 // Wrapper for custom types to allow calling different traits for UDFs
 #[derive(Debug, PartialEq)]
-struct Id<T>(T);
+struct Udf<T>(T);
 
 pub struct SparseMatrix<T> {
     inner: GrB_Matrix,
@@ -64,7 +66,6 @@ impl<T> fmt::Debug for SparseMatrix<T> {
     }
 }
 
-
 impl<T> fmt::Debug for SparseVector<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let shape = self.size();
@@ -80,8 +81,6 @@ pub enum MatrixFormat {
 }
 
 impl<T: TypeEncoder> SparseMatrix<T> {
-
-
     pub fn empty_mat(size: (u64, u64), format: Option<MatrixFormat>) -> SparseMatrix<T> {
         let _ = *GRB;
 
@@ -98,9 +97,58 @@ impl<T: TypeEncoder> SparseMatrix<T> {
         }
 
         SparseMatrix {
-            inner:mat,
+            inner: mat,
             _marker: PhantomData,
         }
+    }
+
+    pub fn apply_all<Z: TypeEncoder, B>(
+        &self,
+        unary_op: UnaryOp<T, Z>,
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<T, T, T>>,
+        desc: &Descriptor,
+    ) -> SparseMatrix<Z> {
+        let (m, n) = self.shape();
+
+        let mask = mask
+            .map(|x| x.inner)
+            .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
+        let acc = accum
+            .map(|x| x.op)
+            .unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
+
+        let c = if let Some(Value::Transpose) = desc.get(Field::Input0) {
+            SparseMatrix::<Z>::empty((n, m)) // no change at all
+        } else {
+            SparseMatrix::<Z>::empty((m, n)) // do the transpose
+        };
+
+        grb_run(|| unsafe {
+            GrB_Matrix_apply(c.inner, mask, acc, unary_op.op, self.inner, desc.desc)
+        });
+        c
+    }
+
+    pub fn apply_mut<Z: TypeEncoder, B: CanBool>(
+        self,
+        unary_op: UnaryOp<T, Z>,
+        mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
+        accum: Option<&BinaryOp<T, T, T>>,
+        desc: &Descriptor,
+    ) -> SparseMatrix<Z> {
+
+        let mask = mask
+            .map(|x| x.inner)
+            .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
+        let acc = accum
+            .map(|x| x.op)
+            .unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
+
+        grb_run(|| unsafe {
+            GrB_Matrix_apply(self.inner, mask, acc, unary_op.op, self.inner, desc.desc)
+        });
+        unsafe { mem::transmute(self) }
     }
 
     pub fn empty(size: (u64, u64)) -> SparseMatrix<T> {
@@ -115,19 +163,17 @@ impl<T: TypeEncoder> SparseMatrix<T> {
         SparseMatrix::<T>::empty_mat(size, Some(MatrixFormat::CSC))
     }
 
-
     pub fn transpose(&self) -> SparseMatrix<T> {
         self.transpose_all(empty_matrix_mask::<bool>(), None, &Descriptor::default())
     }
 
-    pub fn transpose_all<B:CanBool>(
+    pub fn transpose_all<B: CanBool>(
         &self,
         mask: Option<&SparseMatrix<B>>, // any type that can be made boolean
         accum: Option<&BinaryOp<T, T, T>>,
-        desc: &Descriptor
+        desc: &Descriptor,
     ) -> SparseMatrix<T> {
         let (m, n) = self.shape();
-
 
         let c = if let Some(Value::Transpose) = desc.get(Field::Input0) {
             SparseMatrix::<T>::empty((m, n)) // no change at all
@@ -142,22 +188,13 @@ impl<T: TypeEncoder> SparseMatrix<T> {
             .map(|x| x.op)
             .unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
 
-        grb_run(|| unsafe {
-            GrB_transpose(
-                c.inner,
-                mask,
-                acc,
-                self.inner,
-                desc.desc,
-            )
-        });
+        grb_run(|| unsafe { GrB_transpose(c.inner, mask, acc, self.inner, desc.desc) });
         c
     }
 
-    pub fn extract(&self, l:Range<u64>, r:Range<u64>) -> SparseMatrix<T> {
-
-        let is = vec!(l.start, l.end - 1);
-        let js = vec!(r.start, r.end - 1);
+    pub fn extract(&self, l: Range<u64>, r: Range<u64>) -> SparseMatrix<T> {
+        let is = vec![l.start, l.end - 1];
+        let js = vec![r.start, r.end - 1];
         let c = SparseMatrix::<T>::empty((l.end, r.end));
         let d = Descriptor::default();
         grb_run(|| unsafe {
@@ -170,22 +207,25 @@ impl<T: TypeEncoder> SparseMatrix<T> {
                 GxB_RANGE as u64,
                 js.as_ptr(),
                 GxB_RANGE as u64,
-                d.desc
+                d.desc,
             )
         });
         c
     }
 
-    pub fn remove(&mut self, i:u64, j:u64) {
-        grb_run(|| unsafe {GrB_Matrix_removeElement(self.inner, i, j)})
+    pub fn remove(&mut self, i: u64, j: u64) {
+        grb_run(|| unsafe { GrB_Matrix_removeElement(self.inner, i, j) })
     }
 
-    pub fn diag(&mut self, diag: &SparseVector<T>, k:i64, desc: Option<Descriptor>) -> &SparseMatrix<T> {
+    pub fn diag(
+        &mut self,
+        diag: &SparseVector<T>,
+        k: i64,
+        desc: Option<Descriptor>,
+    ) -> &SparseMatrix<T> {
         let d = desc.unwrap_or(Descriptor::default());
 
-        grb_run(|| unsafe {
-            GxB_Matrix_diag(self.inner, diag.inner, k, d.desc)
-        });
+        grb_run(|| unsafe { GxB_Matrix_diag(self.inner, diag.inner, k, d.desc) });
 
         self
     }
@@ -224,9 +264,8 @@ impl<T> SparseMatrix<T> {
     }
 
     pub fn wait(&mut self) {
-        grb_run(|| unsafe { GrB_Matrix_wait(&mut self.inner)})
+        grb_run(|| unsafe { GrB_Matrix_wait(&mut self.inner) })
     }
-
 }
 
 impl<T> Clone for SparseMatrix<T> {
@@ -270,11 +309,11 @@ impl<T> SparseVector<T> {
     }
 
     pub fn wait(&mut self) {
-        grb_run(|| unsafe { GrB_Vector_wait(&mut self.inner)})
+        grb_run(|| unsafe { GrB_Vector_wait(&mut self.inner) })
     }
 
-    pub fn remove(&mut self, i:u64) {
-        grb_run(|| unsafe {GrB_Vector_removeElement(self.inner, i)})
+    pub fn remove(&mut self, i: u64) {
+        grb_run(|| unsafe { GrB_Vector_removeElement(self.inner, i) })
     }
 }
 
@@ -295,7 +334,7 @@ impl<T> Drop for SparseMatrix<T> {
     fn drop(&mut self) {
         let m_pointer = &mut self.inner as *mut GrB_Matrix;
         self.wait();
-        grb_run( || unsafe { GrB_Matrix_free(m_pointer) })
+        grb_run(|| unsafe { GrB_Matrix_free(m_pointer) })
     }
 }
 
@@ -309,13 +348,10 @@ impl<T> Drop for SparseVector<T> {
 
 macro_rules! partial_eq_impls {
     ( $typ:ty ) => {
-
         impl PartialEq for SparseMatrix<$typ> {
-
             fn eq(&self, other: &Self) -> bool {
-
                 let shape = self.shape();
-                if shape != other.shape(){
+                if shape != other.shape() {
                     return false;
                 }
                 let nvals = self.nvals();
@@ -327,19 +363,17 @@ macro_rules! partial_eq_impls {
                         false
                     } else {
                         let mut result = false;
-                        let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
+                        let m =
+                            SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
                         *c.reduce_all(&mut result, &m, None, None)
                     }
                 }
-
             }
         }
         impl PartialEq for SparseVector<$typ> {
-
             fn eq(&self, other: &Self) -> bool {
-
                 let size = self.size();
-                if size != other.size(){
+                if size != other.size() {
                     return false;
                 }
                 let nvals = self.nvals();
@@ -351,11 +385,11 @@ macro_rules! partial_eq_impls {
                         false
                     } else {
                         let mut result = false;
-                        let m = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
+                        let m =
+                            SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::land(), true);
                         *c.reduce_all(&mut result, &m, None, None)
                     }
                 }
-
             }
         }
     };
@@ -413,13 +447,7 @@ mod tests {
         let land = BinaryOp::<bool, bool, bool>::land();
         let semi = Semiring::new(&m, land);
 
-        v.vxm_mut(
-            empty_vector_mask::<bool>(),
-            None,
-            &A,
-            &semi,
-            None,
-        );
+        v.vxm_mut(empty_vector_mask::<bool>(), None, &A, &semi, None);
     }
 
     #[test]
@@ -481,13 +509,7 @@ mod tests {
 
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
-        v.vxm_mut(
-            empty_vector_mask::<bool>(),
-            None,
-            &m,
-            &or_and_semi,
-            None,
-        );
+        v.vxm_mut(empty_vector_mask::<bool>(), None, &m, &or_and_semi, None);
 
         // neighbours of 0 are 1 and 3
         assert_eq!(v.get(1), Some(true));
@@ -566,7 +588,6 @@ mod tests {
 
     #[test]
     fn extract_sub_matrix() {
-
         let mut m = SparseMatrix::<bool>::empty((7, 7));
 
         let edges_n: usize = 10;
@@ -576,9 +597,8 @@ mod tests {
             &[1, 3, 6, 4, 5, 4, 5, 4, 2, 3],
         );
 
-        let mut n = m.extract(0 .. 4, 0 .. 4);
+        let mut n = m.extract(0..4, 0..4);
         assert_eq!(n.shape(), (4, 4));
-
 
         for i in 0..4 {
             for j in 0..4 {
@@ -646,7 +666,6 @@ mod tests {
 
     #[test]
     fn partial_eq_test_in_equality_empty_on_shape() {
-
         let a = SparseMatrix::<bool>::empty((7, 7));
         let b = SparseMatrix::<bool>::empty((7, 7));
         let c = SparseMatrix::<bool>::empty((2, 5));
@@ -697,9 +716,8 @@ mod tests {
         assert_ne!(v2, v1);
     }
 
-
     #[test]
-    fn expand_from_one_node_to_next_node_in_single_edge_graph(){
+    fn expand_from_one_node_to_next_node_in_single_edge_graph() {
         let mut edges = SparseMatrix::<bool>::empty((2, 2));
         edges.insert((0, 1), true);
 
@@ -711,15 +729,20 @@ mod tests {
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
-        let next_front = front.vxm_mut(empty_vector_mask::<bool>(), None, &edges, &or_and_semi, None);
+        let next_front = front.vxm_mut(
+            empty_vector_mask::<bool>(),
+            None,
+            &edges,
+            &or_and_semi,
+            None,
+        );
 
         assert_eq!(next_front.get(1), Some(true));
         assert_eq!(next_front.get(0), None);
-
     }
 
     #[test]
-    fn expand_from_one_node_to_next_two_edge_graph(){
+    fn expand_from_one_node_to_next_two_edge_graph() {
         // P1 --friend--> P0 --pet--> D2
         let mut pet = SparseMatrix::<bool>::empty((3, 3));
         pet.insert((0, 2), true);
@@ -728,7 +751,7 @@ mod tests {
         friend.insert((1, 0), true);
 
         //start at 0 and find nodes with pets
-        let mut have_pets = SparseMatrix::<bool>::empty((3,3));
+        let mut have_pets = SparseMatrix::<bool>::empty((3, 3));
         have_pets.insert((0, 0), true);
         have_pets.insert((1, 1), true);
 
@@ -737,7 +760,13 @@ mod tests {
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
         let or_and_semi2 = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
-        let next_have_pets = have_pets.mxm(empty_matrix_mask::<bool>(), None, &pet, or_and_semi, &Descriptor::default());
+        let next_have_pets = have_pets.mxm(
+            empty_matrix_mask::<bool>(),
+            None,
+            &pet,
+            or_and_semi,
+            &Descriptor::default(),
+        );
 
         assert_eq!(next_have_pets.get((0, 0)), None);
         assert_eq!(next_have_pets.get((0, 1)), None);
@@ -749,23 +778,74 @@ mod tests {
         let mut dog_node_mat = SparseMatrix::<bool>::empty((3, 3));
         dog_node_mat.insert((2, 2), true);
 
-        let extract_pets = next_have_pets.mxm(empty_matrix_mask::<bool>(), None, &dog_node_mat, or_and_semi2, &Descriptor::default());
+        let extract_pets = next_have_pets.mxm(
+            empty_matrix_mask::<bool>(),
+            None,
+            &dog_node_mat,
+            or_and_semi2,
+            &Descriptor::default(),
+        );
 
         assert_eq!(extract_pets.get((0, 2)), Some(true));
-
     }
 
     #[test]
     fn test_vector_extract() {
-
         let mut v1 = SparseVector::<bool>::empty(5);
 
         v1.insert(3, true);
         v1.insert(0, true);
 
-        let (vals, is)  = v1.extract_tuples();
+        let (vals, is) = v1.extract_tuples();
 
         assert_eq!(is, vec!(0, 3));
         assert_eq!(vals, vec!(true, true));
+    }
+
+    #[test]
+    fn test_matrix_apply() {
+        let mut mat1 = SparseMatrix::<u32>::empty((3, 5));
+        mat1.insert((2, 4), 12);
+
+        let mat2 = mat1.apply_all::<u32, bool>(
+            UnaryOp::<u32, u32>::one(),
+            None,
+            None,
+            &Descriptor::default(),
+        );
+
+        assert_eq!(mat2.shape(), (3, 5));
+        assert_eq!(mat2.get((2, 4)), Some(1));
+    }
+    #[test]
+    fn test_matrix_apply_transpose() {
+        let mut mat1 = SparseMatrix::<u32>::empty((3, 5));
+        mat1.insert((2, 4), 12);
+
+        let mat2 = mat1.apply_all::<u32, bool>(
+            UnaryOp::<u32, u32>::one(),
+            None,
+            None,
+            &Descriptor::default().set(Field::Input0, Value::Transpose),
+        );
+
+        assert_eq!(mat2.shape(), (5, 3));
+        assert_eq!(mat2.get((4, 2)), Some(1));
+    }
+
+    #[test]
+    fn test_matrix_apply_transpose_on_self() {
+        let mut mat1 = SparseMatrix::<u32>::empty((3, 5));
+        mat1.insert((2, 4), 12);
+
+        let mat2 = mat1.apply_mut::<u32, bool>(
+            UnaryOp::<u32, u32>::one(),
+            None,
+            None,
+            &Descriptor::default(),
+        );
+
+        assert_eq!(mat2.shape(), (3, 5));
+        assert_eq!(mat2.get((2, 4)), Some(1));
     }
 }

@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-use crate::{ops::binops::*, Id};
+use crate::{ops::binops::*, Udf};
 use crate::ops::ffi::*;
 use std::{marker::PhantomData, ffi::c_void};
 use std::mem::MaybeUninit;
@@ -21,8 +21,8 @@ pub trait MonoidBuilder<T> {
     fn new_monoid(binOp: BinaryOp<T, T, T>, default: T) -> SparseMonoid<T>;
 }
 
-impl<T> MonoidBuilder<Id<T>> for Id<T> {
-    fn new_monoid(binOp: BinaryOp<Id<T>, Id<T>, Id<T>>, mut default: Id<T>) -> SparseMonoid<Id<T>> {
+impl<T> MonoidBuilder<Udf<T>> for Udf<T> {
+    fn new_monoid(binOp: BinaryOp<Udf<T>, Udf<T>, Udf<T>>, mut default: Udf<T>) -> SparseMonoid<Udf<T>> {
         let m = grb_call(|M: &mut MaybeUninit<GrB_Monoid>| unsafe {
             let x = &mut default;
              GrB_Monoid_new_UDT(M.as_mut_ptr(), binOp.op, x as *mut _ as *mut c_void)

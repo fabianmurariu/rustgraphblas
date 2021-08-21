@@ -1,4 +1,3 @@
-
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
@@ -13,7 +12,7 @@ pub struct UnaryOp<X, Z> {
     _z: PhantomData<*const Z>,
 }
 
-pub trait UnOp{
+pub trait UnOp {
     type X;
     fn op(&mut self, x: &Self::X) -> ();
 }
@@ -25,7 +24,7 @@ where
     #[no_mangle]
     extern "C" fn unsafe_call(
         arg1: *mut ::std::os::raw::c_void,
-        arg2: *const ::std::os::raw::c_void
+        arg2: *const ::std::os::raw::c_void,
     ) -> () {
         let z: &mut Z = unsafe { &mut *(arg1 as *mut Z) };
         let x: &X = unsafe { &*(arg2 as *const X) };
@@ -43,10 +42,10 @@ where
                 OP.as_mut_ptr(),
                 Some(Self::unsafe_call),
                 Z::blas_type().tpe,
-                X::blas_type().tpe
+                X::blas_type().tpe,
             )
         });
-        UnaryOp{
+        UnaryOp {
             op: grb_op,
             _x: PhantomData,
             _z: PhantomData,
@@ -105,6 +104,53 @@ macro_rules! unary_ops_gen_fp_fc{
     }
 }
 
+macro_rules! unary_ops_gen_fc{
+    ( $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                make_unary_op!($rust_tpe, $rust_tpe, [<GxB_IDENTITY_ $grb_tpe>], identity);
+                )*
+        }
+    }
+}
+
+macro_rules! unary_ops_gen_int{
+    ( $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                make_unary_op!($rust_tpe, $rust_tpe, [<GrB_BNOT_ $grb_tpe>], bnot);
+                )*
+        }
+    }
+}
+
+macro_rules! unary_ops_gen_core{
+    ( $( $rust_tpe:ty ),* ; $( $grb_tpe:ident ),* ) => {
+        paste::item! {
+            $(
+                make_unary_op!($rust_tpe, $rust_tpe, [<GrB_IDENTITY_ $grb_tpe>], identity);
+                make_unary_op!($rust_tpe, $rust_tpe, [<GrB_AINV_ $grb_tpe>], ainv);
+                make_unary_op!($rust_tpe, $rust_tpe, [<GrB_MINV_ $grb_tpe>], minv);
+                make_unary_op!($rust_tpe, $rust_tpe, [<GxB_LNOT_ $grb_tpe>], lnot);
+                make_unary_op!($rust_tpe, $rust_tpe, [<GxB_ONE_ $grb_tpe>], one);
+                make_unary_op!($rust_tpe, $rust_tpe, [<GxB_ABS_ $grb_tpe>], abs);
+                )*
+        }
+    }
+}
+
+unary_ops_gen_fc!(
+    Complex<f32>, Complex<f64>;
+    FC32, FC64);
+
 unary_ops_gen_fp_fc!(
     f32, f64, Complex<f32>, Complex<f64>;
-    FP32, FP64, FC32, FC64);
+    FP32, FP64,FC32, FC64);
+
+unary_ops_gen_core!(
+    bool, i8, u8, i16, u16, i32, u32, i64, u64, f32, f64;
+    BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
+
+unary_ops_gen_int!(
+    i8, u8, i16, u16, i32, u32, i64, u64;
+    INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64);
