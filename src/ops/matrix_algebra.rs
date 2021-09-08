@@ -2,8 +2,6 @@ use crate::*;
 
 use std::{convert::TryInto, ptr};
 
-use super::unaryops::UnaryOp;
-
 pub fn empty_matrix_mask<B>() -> Option<&'static SparseMatrix<B>> {
     None::<&SparseMatrix<B>>
 }
@@ -54,11 +52,11 @@ trait MatConcat<T> {
         [a0, a1]
         [b0, b1]
     ]
-    the matrices are in a row major format 
+    the matrices are in a row major format
     n = number of columns
-    m = number of rows 
+    m = number of rows
      */
-    fn concat(mats:&[&SparseMatrix<T>], n:usize, m:usize) -> SparseMatrix<T>;    
+    fn concat(mats:&[&SparseMatrix<T>], n:usize, m:usize) -> SparseMatrix<T>;
 }
 
 impl<T: TypeEncoder> MatConcat<T> for SparseMatrix<T> {
@@ -80,7 +78,7 @@ impl<T: TypeEncoder> MatConcat<T> for SparseMatrix<T> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-  
+
     #[test]
     fn concat_2_matrices() {
         let a0: SparseMatrix<bool> = SparseMatrix::new((2, 2), &[true], &[1], &[1]);

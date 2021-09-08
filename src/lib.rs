@@ -29,6 +29,8 @@ use std::mem;
 use std::mem::MaybeUninit;
 use std::ops::Range;
 use std::ptr;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 #[macro_use]
 extern crate lazy_static;
@@ -45,9 +47,83 @@ pub struct SparseMatrix<T> {
     _marker: PhantomData<*const T>,
 }
 
+unsafe impl<T: Send> Send for SparseMatrix<T> {}
+unsafe impl<T: Send> Send for SparseVector<T> {}
+
 pub struct SparseVector<T> {
     inner: GrB_Vector,
     _marker: PhantomData<*const T>,
+}
+
+pub struct SyncSparseMatrix<T> {
+    m: Arc<Mutex<SparseMatrix<T>>>,
+}
+
+pub struct SyncSparseVector<T> {
+    m: Arc<Mutex<SparseVector<T>>>,
+}
+
+unsafe impl<T: Sync> Sync for SyncSparseMatrix<T> {}
+unsafe impl<T: Sync> Sync for SyncSparseVector<T> {}
+
+impl<T> Clone for SyncSparseMatrix<T> {
+    fn clone(&self) -> Self {
+        Self { m: self.m.clone() }
+    }
+}
+
+impl<T> Clone for SyncSparseVector<T> {
+    fn clone(&self) -> Self {
+        Self { m: self.m.clone() }
+    }
+}
+
+impl<T> SyncSparseMatrix<T> {
+    pub fn from_mat(mat: SparseMatrix<T>) -> Self {
+        SyncSparseMatrix {
+            m: Arc::new(Mutex::new(mat)),
+        }
+    }
+
+    pub fn use_mut<F, B>(&mut self, mut sync_fn: F) -> B
+    where
+        F: FnMut(&mut SparseMatrix<T>) -> B,
+    {
+        let mut grb_mat = self.m.lock().unwrap();
+        sync_fn(&mut grb_mat)
+    }
+
+    pub fn use0<F, B>(&self, sync_fn: F) -> B
+    where
+        F: Fn(&SparseMatrix<T>) -> B,
+    {
+        let grb_mat = self.m.lock().unwrap();
+        sync_fn(&grb_mat)
+    }
+}
+
+impl<T> SyncSparseVector<T> {
+    pub fn from_mat(mat: SparseVector<T>) -> Self {
+        SyncSparseVector {
+            m: Arc::new(Mutex::new(mat)),
+        }
+    }
+
+    pub fn use_mut<F, B>(&mut self, mut sync_fn: F) -> B
+    where
+        F: FnMut(&mut SparseVector<T>) -> B,
+    {
+        let mut grb_mat = self.m.lock().unwrap();
+        sync_fn(&mut grb_mat)
+    }
+
+    pub fn use0<F, B>(&self, sync_fn: F) -> B
+    where
+        F: Fn(&SparseVector<T>) -> B,
+    {
+        let grb_mat = self.m.lock().unwrap();
+        sync_fn(&grb_mat)
+    }
 }
 
 impl<T> fmt::Debug for SparseMatrix<T> {
@@ -137,7 +213,6 @@ impl<T: TypeEncoder> SparseMatrix<T> {
         accum: Option<&BinaryOp<T, T, T>>,
         desc: &Descriptor,
     ) -> SparseMatrix<Z> {
-
         let mask = mask
             .map(|x| x.inner)
             .unwrap_or(ptr::null_mut::<GB_Matrix_opaque>());
@@ -847,5 +922,77 @@ mod tests {
 
         assert_eq!(mat2.shape(), (3, 5));
         assert_eq!(mat2.get((2, 4)), Some(1));
+    }
+
+    #[test]
+    fn test_matrix_apply_transpose_on_self_fail_java() {
+        let mut mat1 = SparseMatrix::<i32>::empty((1, 3));
+        mat1.insert((0, 0), -3);
+        mat1.insert((0, 2), -4);
+        mat1.insert((0, 1), 10);
+
+        mat1.wait();
+
+        let mut mat2 = mat1.apply_mut::<i32, bool>(
+            UnaryOp::<i32, i32>::one(),
+            None,
+            None,
+            &Descriptor::default(),
+        );
+
+        mat2.wait();
+
+        assert_eq!(mat2.shape(), (1, 3));
+        assert_eq!(mat2.get((0, 0)), Some(1));
+        assert_eq!(mat2.get((0, 2)), Some(1));
+        assert_eq!(mat2.get((0, 1)), Some(1));
+    }
+
+    #[test]
+    fn test_matrix_apply_different_output() {
+        let mut mat1 = SparseMatrix::<i32>::empty((1, 3));
+        mat1.insert((0, 0), -3);
+        mat1.insert((0, 2), -4);
+        mat1.insert((0, 1), 10);
+
+        mat1.wait();
+
+        let mut mat2 = mat1.apply_all::<i32, bool>(
+            UnaryOp::<i32, i32>::one(),
+            None,
+            None,
+            &Descriptor::default(),
+        );
+
+        mat2.wait();
+
+        assert_eq!(mat2.shape(), (1, 3));
+        assert_eq!(mat2.get((0, 0)), Some(1));
+        assert_eq!(mat2.get((0, 2)), Some(1));
+        assert_eq!(mat2.get((0, 1)), Some(1));
+    }
+
+    #[test]
+    fn test_update_matrix_in_parallel() {
+        let n = 10;
+        let sync_mat = SyncSparseMatrix::from_mat(SparseMatrix::<bool>::new(
+            (n, n),
+            &[true, true, true],
+            &[0, 3, 9],
+            &[1, 4, 8],
+        ));
+        for i in 0..n {
+            let mut m = sync_mat.clone();
+
+            std::thread::spawn(move || {
+                m.use_mut(|mat| {
+                    mat.insert((i, i), true);
+                    let monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), true);
+                    let mut out = true;
+                    mat.reduce_all(&mut out, &monoid, None, None);
+                    assert_eq!(out, true);
+                });
+            });
+        }
     }
 }
