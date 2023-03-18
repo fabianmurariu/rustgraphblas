@@ -179,8 +179,8 @@ mod tests {
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
         let mut desc = Descriptor::default();
-        desc.set(Field::Mask, Value::SCMP)
-            .set(Field::Output, Value::Replace);
+        // desc.set(Field::Mask, Value::SCMP)
+        //     .set(Field::Output, Value::Replace);
 
         let mut successor = true;
 
@@ -210,6 +210,7 @@ mod tests {
 
     #[test]
     fn graph_blas_port_strong_cc(){
+        // TODO: rewrite this entire thing
 
         // like bfs but not tracking the distance just marks the reachable nodes
         fn simple_bfs(g:&SparseMatrix<bool>, v:u64) -> SparseVector<bool>{
@@ -224,8 +225,8 @@ mod tests {
             let default_desc = Descriptor::default();
 
             let mut desc = Descriptor::default();
-            desc.set(Field::Mask, Value::SCMP)
-                .set(Field::Output, Value::Replace);
+            // desc.set(Field::Mask, Value::SCMP)
+            //     .set(Field::Output, Value::Replace);
 
             loop {
                 reached.assign_all(Some(&frontier), None, true, size, &default_desc); // set all of reached to x

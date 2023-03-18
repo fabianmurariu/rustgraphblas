@@ -2,7 +2,7 @@
 name = "rustgraphblas"
 version = "0.16.0-alpha"
 authors = ["FabianM <murariu.fabian@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 keywords = ["graphblas", "blas", "graph", "algorithms"]
 homepage = "https://github.com/fabianmurariu/rustgraphblas"

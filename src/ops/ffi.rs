@@ -8,12 +8,14 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::mem::MaybeUninit;
 
+use crate::GrBInfo;
+
 pub type Complex<T> = __BindgenComplex<T>;
 
 pub type fc32 = Complex<f32>;
 pub type fc64 = Complex<f64>;
 
-fn handle_grb_response(status:u32) {
+fn handle_grb_response(status:GrBInfo) {
     match status {
         0 => (),
         err => {
@@ -29,7 +31,7 @@ fn handle_grb_response(status:u32) {
 
 pub fn grb_call<F, T>(mut grb_fn: F) -> T
 where
-    F: FnMut(&mut MaybeUninit<T>) -> u32 ,
+    F: FnMut(&mut MaybeUninit<T>) -> GrBInfo ,
 {
     let mut P = MaybeUninit::<T>::uninit();
     handle_grb_response(grb_fn(&mut P));
@@ -38,7 +40,7 @@ where
 
 pub fn grb_run<F>(mut grb_fn: F)
 where
-    F: FnMut() -> u32 {
+    F: FnMut() -> GrBInfo {
     handle_grb_response(grb_fn());
 }
 

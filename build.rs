@@ -24,6 +24,8 @@ fn main() {
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");
 
+    println!("cargo:rustc-env=LD_LIBRARY_PATH=deps/GraphBLAS/build");
+
     let ignored_macros = IgnoreMacros(
         vec![
             "FP_INFINITE".into(),

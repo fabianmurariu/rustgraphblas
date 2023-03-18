@@ -36,8 +36,11 @@ use std::sync::Mutex;
 extern crate lazy_static;
 
 lazy_static! {
-    static ref GRB: u32 = unsafe { GrB_init(GrB_Mode_GrB_NONBLOCKING) };
+    static ref GRB: i32 = unsafe { GrB_init(GrB_Mode_GrB_NONBLOCKING) };
 }
+
+type GrBInfo = i32;
+
 // Wrapper for custom types to allow calling different traits for UDFs
 #[derive(Debug, PartialEq)]
 struct Udf<T>(T);
@@ -339,7 +342,9 @@ impl<T> SparseMatrix<T> {
     }
 
     pub fn wait(&mut self) {
-        grb_run(|| unsafe { GrB_Matrix_wait(&mut self.inner) })
+        grb_run(|| unsafe {
+            GrB_Matrix_wait(self.inner, crate::ops::ffi::GrB_WaitMode_GrB_COMPLETE)
+        })
     }
 }
 
@@ -384,7 +389,9 @@ impl<T> SparseVector<T> {
     }
 
     pub fn wait(&mut self) {
-        grb_run(|| unsafe { GrB_Vector_wait(&mut self.inner) })
+        grb_run(|| unsafe {
+            GrB_Vector_wait(self.inner, crate::ops::ffi::GrB_WaitMode_GrB_COMPLETE)
+        })
     }
 
     pub fn remove(&mut self, i: u64) {
@@ -987,7 +994,8 @@ mod tests {
             std::thread::spawn(move || {
                 m.use_mut(|mat| {
                     mat.insert((i, i), true);
-                    let monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), true);
+                    let monoid =
+                        SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), true);
                     let mut out = true;
                     mat.reduce_all(&mut out, &monoid, None, None);
                     assert_eq!(out, true);

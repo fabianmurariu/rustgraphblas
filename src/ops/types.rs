@@ -75,7 +75,6 @@ pub mod desc {
     pub enum Value {
         Default = GrB_Desc_Value_GxB_DEFAULT as isize,
         Replace = GrB_Desc_Value_GrB_REPLACE as isize,
-        SCMP = GrB_Desc_Value_GrB_SCMP as isize,
         Structure = GrB_Desc_Value_GrB_STRUCTURE as isize,
         Transpose = GrB_Desc_Value_GrB_TRAN as isize,
         Gustavson = GrB_Desc_Value_GxB_AxB_GUSTAVSON as isize,
