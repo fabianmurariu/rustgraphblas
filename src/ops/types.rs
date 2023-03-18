@@ -18,7 +18,7 @@ pub trait TypeEncoder {
 impl<T> TypeEncoder for Udf<T> {
     fn blas_type() -> SparseType {
         let grb_type: GrB_Type = grb_call(|TPE: &mut MaybeUninit<GrB_Type>| unsafe {
-            GrB_Type_new(TPE.as_mut_ptr(), size_of::<Udf<T>>() as u64)
+            GrB_Type_new(TPE.as_mut_ptr(), size_of::<Udf<T>>())
         });
         SparseType { tpe: grb_type }
     }

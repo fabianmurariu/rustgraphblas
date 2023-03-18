@@ -17,4 +17,4 @@ num-traits = "0.2.14"
 either = "^1.5"
 
 [build-dependencies]
-bindgen = "0.58.1"
+bindgen = "0.64"

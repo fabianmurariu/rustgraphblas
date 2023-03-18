@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 struct IgnoreMacros(HashSet<String>);
-
 impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     fn will_parse_macro(&self, name: &str) -> bindgen::callbacks::MacroParsingBehavior {
         if self.0.contains(name) {
@@ -18,13 +17,15 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 }
 
 fn main() {
+    // Tell cargo to look for shared libraries in the specified directory
+    println!("cargo:rustc-link-search=deps/GraphBLAS/build");
+
     // Tell cargo to tell rustc to link the system bzip2
     // shared library.
     println!("cargo:rustc-link-lib=graphblas");
+
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");
-
-    println!("cargo:rustc-env=LD_LIBRARY_PATH=deps/GraphBLAS/build");
 
     let ignored_macros = IgnoreMacros(
         vec![
@@ -36,8 +37,7 @@ fn main() {
             "IPPORT_RESERVED".into(),
         ]
         .into_iter()
-        .collect(),
-    );
+        .collect(),);
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
     // the resulting bindings.
@@ -45,8 +45,10 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header("wrapper.h")
+        // Tell cargo to invalidate the built crate whenever any of the
+        // included header files changed.
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .parse_callbacks(Box::new(ignored_macros))
-        .rustfmt_bindings(true)
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
