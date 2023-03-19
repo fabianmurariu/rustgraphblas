@@ -58,8 +58,38 @@ pub mod desc {
     use num_traits::{FromPrimitive, ToPrimitive};
     use std::mem::MaybeUninit;
 
+    pub trait Desc{
+        fn desc(&self) -> GrB_Descriptor;
+    }
+    
     pub struct Descriptor {
         pub(crate) desc: GrB_Descriptor,
+    }
+
+    pub struct PredefDescriptor{
+        pub(crate) desc: GrB_Descriptor,
+    }
+
+    impl PredefDescriptor{
+        pub fn rsc() -> PredefDescriptor{
+            PredefDescriptor{desc: unsafe {GrB_DESC_RSC}}
+        }
+    }
+
+    unsafe impl Send for PredefDescriptor{}
+    unsafe impl Sync for PredefDescriptor{}
+
+
+    impl Desc for PredefDescriptor{
+        fn desc(&self) -> GrB_Descriptor{
+            self.desc
+        }
+    }
+
+    impl Desc for Descriptor{
+        fn desc(&self) -> GrB_Descriptor{
+            self.desc
+        }
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Primitive)]

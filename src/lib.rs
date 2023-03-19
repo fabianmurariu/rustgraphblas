@@ -529,7 +529,13 @@ mod tests {
         let land = BinaryOp::<bool, bool, bool>::land();
         let semi = Semiring::new(&m, land);
 
-        v.vxm_mut(empty_vector_mask::<bool>(), None, &A, &semi, None);
+        v.vxm_mut::<bool, bool, bool, Descriptor>(
+            empty_vector_mask::<bool>(),
+            None,
+            &A,
+            &semi,
+            None,
+        );
     }
 
     #[test]
@@ -591,7 +597,13 @@ mod tests {
 
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
-        v.vxm_mut(empty_vector_mask::<bool>(), None, &m, &or_and_semi, None);
+        v.vxm_mut::<bool, bool, bool, Descriptor>(
+            empty_vector_mask::<bool>(),
+            None,
+            &m,
+            &or_and_semi,
+            None,
+        );
 
         // neighbours of 0 are 1 and 3
         assert_eq!(v.get(1), Some(true));
@@ -811,7 +823,7 @@ mod tests {
         let lor_monoid = SparseMonoid::<bool>::new(BinaryOp::<bool, bool, bool>::lor(), false);
         let or_and_semi = Semiring::new(&lor_monoid, BinaryOp::<bool, bool, bool>::land());
 
-        let next_front = front.vxm_mut(
+        let next_front = front.vxm_mut::<bool, bool, bool, Descriptor>(
             empty_vector_mask::<bool>(),
             None,
             &edges,

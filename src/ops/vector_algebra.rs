@@ -84,13 +84,13 @@ grb_trait_constructor!(make_matrix_builder; GrB_Matrix_build_;
                        BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64, FP32, FP64);
 
 pub trait VectorXMatrix<X> {
-    fn vxm_mut<Y, Z, B: CanBool>(
+    fn vxm_mut<Y, Z, B: CanBool, D: Desc>(
         &mut self,
         mask: Option<&SparseVector<B>>, // any type that can be made boolean
         accum: Option<&BinaryOp<Z, Z, Z>>,
         m: &SparseMatrix<Y>,
         s_ring: &Semiring<X, Y, Z>,
-        desc: Option<&Descriptor>,
+        desc: Option<&D>,
     ) -> &SparseVector<Z>;
 
     // fn vxm<Y, Z:TypeEncoder, B: CanBool>(
@@ -257,13 +257,13 @@ impl<X> VectorXMatrix<X> for SparseVector<X> {
     //     v
     // }
 
-    fn vxm_mut<Y, Z, B: CanBool>(
+    fn vxm_mut<Y, Z, B: CanBool, D:Desc>(
         &mut self,
         mask: Option<&SparseVector<B>>, // any type that can be made boolean
         accum: Option<&BinaryOp<Z, Z, Z>>,
         m: &SparseMatrix<Y>,
         s_ring: &Semiring<X, Y, Z>,
-        desc: Option<&Descriptor>,
+        desc: Option<&D>,
     ) -> &SparseVector<Z> {
 
         let mask = mask
@@ -274,8 +274,8 @@ impl<X> VectorXMatrix<X> for SparseVector<X> {
             .unwrap_or(ptr::null_mut::<GB_BinaryOp_opaque>());
 
         let default_desc = Descriptor::default();
-        let d = desc.unwrap_or(&default_desc);
-        grb_run(|| unsafe { GrB_vxm(self.inner, mask, acc, s_ring.s, self.inner, m.inner, d.desc) });
+        let d = desc.map(|d| d.desc()).unwrap_or(default_desc.desc);
+        grb_run(|| unsafe { GrB_vxm(self.inner, mask, acc, s_ring.s, self.inner, m.inner, d) });
 
         unsafe { mem::transmute(self) }
     }
